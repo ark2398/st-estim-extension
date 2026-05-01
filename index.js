@@ -53,6 +53,7 @@ const ESTIM_MAX_PAIN_AUDIOVOLUME = 1.0;
 // Global State
 let estimAvailableStimulations = {};
 let estimAudioBuffers = {};
+let estimAudioBuffersCanLoop = [];
 let estimAudioContext = null;
 let estimActiveSources = [];
 let generationEndedHandler = null;
@@ -239,7 +240,13 @@ async function switchProfile(profileId, quiet = false) {
             // Get the associated audio buffer
             const buffer = estimAudioBuffers[name];
             if (buffer) {
-                parsedDesc = `${parsedDesc} (duration: ${buffer.duration.toFixed(1)} s)`;
+                parsedDesc = `${parsedDesc} (duration: ${buffer.duration.toFixed(1)} s`;
+
+                if (estimAudioBuffersCanLoop[name] || false) {
+                    parsedDesc = `${parsedDesc}, can loop`;
+                }
+                parsedDesc = `${parsedDesc})`;
+
             }
 
             // Return entire description
@@ -292,6 +299,7 @@ async function loadEstimDirectory(folderPath, configFile) {
             if (stim.disabled === true) {
                 delete estimAvailableStimulations[stim.name];
                 delete estimAudioBuffers[stim.name];
+                delete estimAudioBuffersCanLoop[stim.name];
                 if (DEBUG_MODE) console.log(`ESTIM: Pattern "${stim.name}" explicitly removed by config.`);
                 continue;
             }
@@ -308,6 +316,7 @@ async function loadEstimDirectory(folderPath, configFile) {
                     // Overwrite or create new entry in the global state
                     estimAvailableStimulations[stim.name] = stim;
                     estimAudioBuffers[stim.name] = audioBuffer;
+                    estimAudioBuffersCanLoop[stim.name] = stim.can_loop || false;
 
                     if (DEBUG_MODE) console.log(`ESTIM: Loaded pattern "${stim.name}" from ${stim.file}`);
                 } catch (e) {
@@ -332,6 +341,7 @@ async function loadEstimDirectory(folderPath, configFile) {
  */
 async function registerEstimFiles() {
     estimAudioBuffers = {};
+    estimAudioBuffersCanLoop = [];
 
     // Add static stimulation patterns here. Actually right now this
     // is only the 'stop' command, which is not associated with an audio file but is recognized in the logic.
@@ -465,15 +475,23 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     }
     if (duration < 0) {
         // A negative value indicates that the playback shall continue
-        // until a new command is issued.
-        source.loop = true;
+        // until a new command is issued. Only do this if it is allowed
+        if (estimAudioBuffersCanLoop[pattern] || false) {
+
+            // Set looping 
+            source.loop = true;
+        } 
+        else {
+            // No looping allowed. Set to single playback
+            duration = 0;
+            console.warn(`ESTIM: Continuous playback of non-loopable sensation ${pattern} prevented`);
+        }
     }
-    if (duration === 0) {
+    if (duration === 0) { 
         // Play the file exactly one time and then stops
         source.loop = false;
 
-        // Register a listener when the audio playback ended
-
+        // TODO Register a listener when the audio playback ended
     }
 
     // Remember everything
@@ -636,10 +654,22 @@ async function registerAiFunctionTools() {
                 },
                 duration: {
                     type: 'integer',
-                    description: 'Duration of the inflicted sensation in seconds. The value 0 (default) ' +
-                        'will inflict the sensation exactly for the default duration as indicated in the ' +
-                        'description of the pattern. A negative number will inflict the sensation ' +
-                        'continously (looping) until it is changed or stopped by another call of this tool.',
+                    description: 'Duration of the inflicted sensation in seconds. Default is 0, which plays ' +
+                        'the pattern for its native length as indicated in the pattern description. A negative ' +
+                        'value loops the pattern continuously until changed or stopped by another call.\n' +
+                        'Baseline guidance for matching narration: When the sensation is meant to accompany ' +
+                        'the narration text of the current response, set duration to approximately match ' +
+                        'the reader\'s time-on-page. Estimate at ~3 words per second (180 wpm) and multiply ' +
+                        'by 1.5 to allow for pacing and savoring. Round to the nearest whole second. ' +
+                        'Examples: 30 words ≈ 12 s, 60 words ≈ 24 s, 90 words ≈ 36 s, 150 words ≈ 60 s.\n' +
+                        'Exceptions:\n' +
+                        '- For sensations intended to persist across multiple turns or scenes, use a ' +
+                        'negative value (continuous loop).\n' +
+                        '- For brief punctuating hits within longer narration (a single zap, a momentary ' +
+                        'jolt), use a short fixed duration of 2–5 s regardless of word count.\n' +
+                        'For sensations whose narrated arc is shorter than the pattern\'s native length ' +
+                        '(e.g., a quick warning), cap the duration at the narrated beat\'s reading time ' +
+                        'rather than letting it run full.',
                 },
                 who: {
                     type: 'string',
