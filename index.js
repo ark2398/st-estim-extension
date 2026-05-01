@@ -682,13 +682,12 @@ async function registerAiFunctionTools() {
         registerFunctionTool({
             name: 'inflict_physical_sensation',
             displayName: 'Inflict Physical Sensation',
-            description: 'As the narrator, use this tool to inflict a real physical sensation on the user\'s body. ' +
+            description: 'Use this tool to inflict a real physical sensation on the user\'s body. ' +
                 'Call this seamlessly while narrating. Use the descriptions in the "pattern" parameter to ' +
                 'match the story\'s physical sensations. Each description specifies the default duration of ' +
-                'the sensation. Use it as a guidance of the intendet sensation duration and match it to the ' +
-                'requirements of the story. Looping, etc. is explicitly allowed. IMPORTANT: You must generate ' +
-                'the story text and call the tool in the same response. Do not stop generating text after ' +
-                'calling this tool!',
+                'the sensation for one iteration. If looping is allowed is indicated in the pattern description. ' +
+                'IMPORTANT: You must generate the story text and call the tool in the same response. Do ' +
+                'not stop generating text after calling this tool!',
             parameters: estimSchema,
             stealth: false,
             action: async (args) => {
