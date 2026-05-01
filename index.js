@@ -156,13 +156,22 @@ async function loadProfileDirectory(folderPath, configFile) {
                 const profileResp = await fetch(new URL(fileName, baseUrl).href);
                 if (profileResp.ok) {
                     const profileData = await profileResp.json();
-                    // Store profile with fileName as unique ID
-                    estimProfiles[fileName] = profileData;
+
+                    // Get the profile name. Preferably it is the 'name' attribute
+                    // If it is not found, use the filename
+                    const id = profileData.name || fileName;
+
+                    // Store profile with name or fileName as unique ID
+                    estimProfiles[id] = profileData;
+                    estimProfiles[id].id = id;
 
                     // Add stop pattern description to the profile's sensations for AI tool context
-                    estimProfiles[fileName].sensations.stop = 'Stop all signals immediately.';
+                    estimProfiles[id].sensations.stop = 'Stop all signals immediately.';
 
-                    if (DEBUG_MODE) console.log(`ESTIM: Profile "${profileData.display_name}" loaded from ${fileName}`);
+                    if (DEBUG_MODE) {
+                        console.log(`ESTIM: Profile "${profileData.display_name}" loaded from ${fileName}`,
+                            estimProfiles[id]);
+                    }
                 }
             } catch (e) {
                 console.error(`ESTIM: Failed to load profile file ${fileName}`, e);
@@ -234,7 +243,7 @@ async function switchProfile(profileId, quiet = false) {
             }
 
             // Return entire description
-            return `"${name}": ${parsedDesc}`;
+            return `  - "${name}": ${parsedDesc}`;
         })
         .join('\n');
 
@@ -607,12 +616,19 @@ async function registerAiFunctionTools() {
                 pattern: {
                     type: 'string',
                     enum: activeProfile.patternNames,
-                    description: `The sensation pattern to inflict on the user. Current available patterns:\n${activeProfile.patternDescriptions}`
+                    description: `The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
+                        'it is also indicated in the following description. Current available sensations:\n' +
+                        '${activeProfile.patternDescriptions}`
                 },
                 intensity: {
                     type: 'integer',
-                    description: 'Intensity 1-100 (pleasure), 101-200 (pain). To unlock painful intensities, ' +
-                        '"is_pain_intensity" must be set to true as a safety measure. Default is 10 (low intensity).',
+                    description: 'Intensity 1-100 (pleasure intensity), 101-200 (pain intensity). Every sensation ' +
+                        'can be made painful by increasing its intensity to pain intensity. This means that normal ' +
+                        'pleasure sensations will become pain sensations at intensities greater 100, whereas ' +
+                        'pain sensations will always be painfull regardless of a certain intensity threshold. ' +
+                        'To unlock painful intensities, "is_pain_intensity" must be set to true as a safety measure. ' +
+                        'Default is 10 (low intensity). The intensity is a multiplier to the intensity indication ' +
+                        'in the description. ',
                 },
                 is_pain_intensity: {
                     type: 'boolean',
@@ -674,7 +690,7 @@ async function registerAiFunctionTools() {
                 // we interpret this as a command to stop the signal immediately without starting a new one. 
                 if (args.intensity === 0 || args.pattern.toLowerCase() === 'stop') {
                     stopAllEstimSignals();
-                    return 'Stoped all e-stim signals.';
+                    return 'Stopped all e-stim signals.';
                 }
 
                 if (!args?.pattern) {
