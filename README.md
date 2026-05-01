@@ -33,7 +33,7 @@ This extension allows the AI in SillyTavern to seamlessly and dynamically trigge
 1. Open your SillyTavern interface.
 2. Go to the **Extensions** menu (the block icon).
 3. Click **Install Extension**.
-4. Paste the link to this GitHub repository (`https://github.com/ark2398%20ark2398/st-estim-extension`) and click install.
+4. Paste the link to this GitHub repository (`https://github.com/ark2398/st-estim-extension`) and click install.
 5. Reload SillyTavern.
 
 ## 🎮 Usage
