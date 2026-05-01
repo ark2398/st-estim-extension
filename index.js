@@ -239,7 +239,7 @@ async function switchProfile(profileId, quiet = false) {
             // Get the associated audio buffer
             const buffer = estimAudioBuffers[name];
             if (buffer) {
-                parsedDesc = `${parsedDesc} (duration: ${buffer.duration} s)`;
+                parsedDesc = `${parsedDesc} (duration: ${buffer.duration.toFixed(1)} s)`;
             }
 
             // Return entire description
