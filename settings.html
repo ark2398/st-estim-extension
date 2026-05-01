@@ -1,0 +1,39 @@
+<div class="estim_settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>ESTIM Immersion</b>
+            <div class="inline-drawer-icon fa-solid interactable up fa-circle-chevron-up" tabindex="0"></div>
+        </div>
+        <div class="inline-drawer-content">
+            
+            <div class="marginBot5">
+                <label for="estim_profile_select">Active Device Profile</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <select id="estim_profile_select" class="text_input" style="flex: 1;">
+                        <option value="">Loading profiles...</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="marginBot5">
+                <label>Electrode Placement (Body Parts)</label>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 5px;">
+                    <span style="width: 30px;">CH 1:</span>
+                    <input id="estim_ch1_input" type="text" class="text_input" style="flex: 1;" placeholder="e.g. left arm, clit, neck...">
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="width: 30px;">CH 2:</span>
+                    <input id="estim_ch2_input" type="text" class="text_input" style="flex: 1;" placeholder="e.g. right arm, nipples, lower back...">
+                </div>
+                <small class="note">
+                    Tell the AI where your device's channels (Left/Right Audio) are connected. 
+                    These will replace the <code>{{estim_ch1}}</code> and <code>{{estim_ch2}}</code> 
+                    placeholders in the profile descriptions.
+                </small>
+            </div>
+
+        </div>
+    </div>
+</div>
