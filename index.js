@@ -1,3 +1,4 @@
+
 /**
  * ESTIM Local Extension for SillyTavern
  * 
@@ -51,13 +52,42 @@ const ESTIM_MAX_PLEASURE_AUDIOVOLUME = 0.7;
 const ESTIM_MAX_PAIN_AUDIOVOLUME = 1.0;
 
 // Global State
-let estimAvailableStimulations = {};
-let estimAudioBuffers = {};
-let estimAudioBuffersCanLoop = [];
-let estimAudioContext = null;
-let estimActiveSources = [];
 let generationEndedHandler = null;
-let audioTimerId = null;
+
+/**
+ * Stores all state parameters of the currently playing audio
+ */
+let audioState = {
+    playing: false,
+    pattern: '',
+    intensity: 0,
+    duration: 0,
+    looping: false,
+    startTime: 0,
+    audioContext: null,
+    audioSource: null,
+    audioGain: null,
+    timerId: null
+};
+
+
+/**
+ * Defines a singel estim sensation as it is read from file
+ * @typedef {Object} EstimSensation
+ * @property {string} name
+ * @property {string} file
+ * @property {boolean} canLoop
+ * @property {number} duration
+ * @property {Object} audioBuffer
+ */
+
+/**
+ * All available estim sensations that we read. The name of
+ * the sensation is used as key.
+ * @type {EstimSensation{}} 
+ */
+globalThis.availableSensations = {};
+
 
 // Profile Management State
 let estimProfiles = {};         // Map of filename -> profile data
@@ -67,20 +97,22 @@ let activeProfile = {
     patternNames: []     // The list of pattern names available in the active profile
 };
 
-// Scheduled stimulation parameters that will be applied when
-//  the next generation finishes. This allows the AI to set 
-// the desired stimulation parameters during generation, and 
-// then have them executed at the right moment after the 
-// message is rendered.
+/**
+ * Scheduled stimulation parameters that will be applied when
+ * the next generation finishes. This allows the AI to set 
+ * the desired stimulation parameters during generation, and 
+ * then have them executed at the right moment after the 
+ * message is rendered. While playing the sensation this object
+ * will track the operational audio parameters.
+ */
 let scheduledEstim = {
     pending: false,
-    playing: false,
-    painEnabled: false,
     pattern: '',
     intensity: 10,
-    duration: 0,
-    startTime: 0
+    duration: 0
 };
+
+
 
 // ==== SETTINGS MANAGEMENT ====
 
@@ -218,11 +250,11 @@ async function switchProfile(profileId, quiet = false) {
     const ch2_text = settings.channel2 || DEFAULT_CHANNEL_2_NAME;
 
     // Get sensations from active profile and filter to only include those that 
-    // have a corresponding audio pattern loaded in estimAvailableStimulations. 
+    // have a corresponding audio pattern loaded in globalThis.availableSensations. 
     // This ensures that the AI tool descriptions only include patterns that can 
     // actually be played.
     const sensations = Object.fromEntries(
-        Object.entries(profile.sensations || {}).filter(([name]) => name in estimAvailableStimulations)
+        Object.entries(profile.sensations || {}).filter(([name]) => name in globalThis.availableSensations)
     );
 
     if (DEBUG_MODE) console.log('ESTIM: Active patterns after profile filtering:', sensations);
@@ -237,17 +269,17 @@ async function switchProfile(profileId, quiet = false) {
                 .replace(/\{\{estim_ch1\}\}/gi, ch1_text)
                 .replace(/\{\{estim_ch2\}\}/gi, ch2_text);
 
-            // Get the associated audio buffer
-            const buffer = estimAudioBuffers[name];
-            if (buffer) {
-                parsedDesc = `${parsedDesc} (duration: ${buffer.duration.toFixed(1)} s`;
-
-                if (estimAudioBuffersCanLoop[name] || false) {
-                    parsedDesc = `${parsedDesc}, can loop`;
+            // Add some specifiers at the end
+            const sensation = globalThis.availableSensations[name];
+            if (sensation?.duration > 0) {
+                if (sensation?.canLoop) {
+                    parsedDesc = `${parsedDesc} (cycle duration: ${sensation.duration.toFixed(1)} s, can loop indefinitely)`;
                 }
-                parsedDesc = `${parsedDesc})`;
-
+                else {
+                    parsedDesc = `${parsedDesc} (maximum duration: ${sensation.duration.toFixed(1)} s)`;
+                }
             }
+
 
             // Return entire description
             return `  - "${name}": ${parsedDesc}`;
@@ -278,7 +310,7 @@ async function switchProfile(profileId, quiet = false) {
 /**
  * Helper function to sequentially load a directory and overload the global configuration.
  * This reads the JSON config from a specific folder, downloads the defined audio files, 
- * and stores them in the global estimAvailableStimulations dictionary.
+ * and stores them in the global globalThis.availableSensations dictionary.
  * @param {string} folderPath The relative path to the folder (e.g. './audio/')
  * @param {string} configFile The name of the json file inside that folder
  */
@@ -297,9 +329,7 @@ async function loadEstimDirectory(folderPath, configFile) {
         for (const stim of data.estims) {
             // Check if user disabled/deleted this pattern explicitly
             if (stim.disabled === true) {
-                delete estimAvailableStimulations[stim.name];
-                delete estimAudioBuffers[stim.name];
-                delete estimAudioBuffersCanLoop[stim.name];
+                delete globalThis.availableSensations[stim.name];
                 if (DEBUG_MODE) console.log(`ESTIM: Pattern "${stim.name}" explicitly removed by config.`);
                 continue;
             }
@@ -311,12 +341,17 @@ async function loadEstimDirectory(folderPath, configFile) {
                     if (!audioResp.ok) throw new Error(`HTTP ${audioResp.status}`);
 
                     const arrayBuffer = await audioResp.arrayBuffer();
-                    const audioBuffer = await estimAudioContext.decodeAudioData(arrayBuffer);
+                    const audioBuffer = await audioState.audioContext.decodeAudioData(arrayBuffer);
 
-                    // Overwrite or create new entry in the global state
-                    estimAvailableStimulations[stim.name] = stim;
-                    estimAudioBuffers[stim.name] = audioBuffer;
-                    estimAudioBuffersCanLoop[stim.name] = stim.can_loop || false;
+                    // Overwrite or create new entry in the global state. Only
+                    // copy the parameters we want. Remember the audio buffer
+                    globalThis.availableSensations[stim.name] = {
+                        name: stim.name,
+                        file: stim.file,
+                        canLoop: stim.can_loop || false,
+                        duration: audioBuffer.duration,
+                        audioBuffer: audioBuffer,
+                    };
 
                     if (DEBUG_MODE) console.log(`ESTIM: Loaded pattern "${stim.name}" from ${stim.file}`);
                 } catch (e) {
@@ -340,15 +375,15 @@ async function loadEstimDirectory(folderPath, configFile) {
  * during initialization to set up the global state for available stimulations.
  */
 async function registerEstimFiles() {
-    estimAudioBuffers = {};
-    estimAudioBuffersCanLoop = [];
-
     // Add static stimulation patterns here. Actually right now this
     // is only the 'stop' command, which is not associated with an audio file but is recognized in the logic.
-    estimAvailableStimulations = {
+    globalThis.availableSensations = {
         'stop': {
             name: 'stop',
-            file: null
+            file: null,
+            canLoop: null,
+            duration: 0,
+            audioBuffer: null
         }
     };
 
@@ -361,13 +396,16 @@ async function registerEstimFiles() {
 
     // Calculate memory usage (Float32 PCM = 4 bytes per sample per channel)
     let totalMemoryBytes = 0;
-    for (const buffer of Object.values(estimAudioBuffers)) {
-        totalMemoryBytes += buffer.length * buffer.numberOfChannels * 4;
+    for (const sensation of Object.values(globalThis.availableSensations)) {
+        const buffer = sensation.audioBuffer;
+        if (buffer) {
+            totalMemoryBytes += buffer.length * buffer.numberOfChannels * 4;
+        }
     }
 
     if (DEBUG_MODE) {
         const totalMB = (totalMemoryBytes / (1024 * 1024)).toFixed(2);
-        console.log(`ESTIM: 🎵 Loaded ${Object.keys(estimAvailableStimulations).length} estim patterns — Total preloaded memory: ${totalMB} MB`);
+        console.log(`ESTIM: 🎵 Loaded ${Object.keys(globalThis.availableSensations).length} estim patterns — Total preloaded memory: ${totalMB} MB`);
     }
 }
 
@@ -386,19 +424,20 @@ async function registerEstimFiles() {
  * @returns 
  */
 async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = false) {
-    const stim = estimAvailableStimulations[pattern];
-    const buffer = estimAudioBuffers[pattern];
+    const sensation = globalThis.availableSensations[pattern];
 
-    // Stop stimulation? If intensity is 0, we interpret this as a command to stop the signal immediately without starting a new one.
+    // Stop stimulation? (we do not care if the other parameters are correct, because "stop" has top priority)
+    // If intensity is 0, we interpret this also as stop without starting a new one.
     if (intensity === 0 || pattern.toLowerCase() === 'stop') {
         stopAllEstimSignals();
         return true;
     }
 
-    if (!stim || !buffer) {
+    // Check if the sensation is truely available
+    if (!sensation || !sensation.audioBuffer) {
         console.error(`ESTIM: Pattern "${pattern}" not found`);
         if (!quiet) {
-            SillyTavern.getContext().sendSystemMessage('generic', `Unknown estim pattern "${pattern}"`, { isSmallSys: true });
+            SillyTavern.getContext().sendSystemMessage('generic', `Unknown sensation pattern "${pattern}"`, { isSmallSys: true });
         }
         return false;
     }
@@ -406,8 +445,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     // Ensure the AudioContext is resumed in response to a user gesture, if it is currently suspended. 
     // This is necessary because many browsers require a user interaction before allowing audio playback.
     await ensureAudioContext();
-    if (!estimAudioContext) {
-        return; // Failsafe if hardware unsupported
+    if (!audioState.audioContext) {
+        return false; // Failsafe if hardware unsupported
     }
 
     // Stop any previous signal with a tiny fade-out first
@@ -430,79 +469,81 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
         }
     }
 
-    const now = estimAudioContext.currentTime;
+    const now = audioState.audioContext.currentTime;
     const fadeInTime = 0.012;   // 12 ms fade-in — this kills the plop
 
     // Create nodes
-    const source = estimAudioContext.createBufferSource();
-    source.buffer = buffer;
+    audioState.audioSource = audioState.audioContext.createBufferSource();
+    audioState.audioSource.buffer = sensation.audioBuffer;
 
     // Create listener to clean up when the playback ends
-    source.onended = () => {
+    audioState.audioSource.onended = () => {
         if (DEBUG_MODE) console.log(`ESTIM: Stop event called`);
-        scheduledEstim.playing = false;
+        audioState.playing = false;
 
         // Terminate running audio termination timer if there still exists one
-        if (audioTimerId) {
-            clearTimeout(audioTimerId);
-            audioTimerId = null;
+        if (audioState.timerId) {
+            clearTimeout(audioState.timerId);
+            audioState.timerId = null;
         }
     };
 
-    const gain = estimAudioContext.createGain();
-    gain.gain.setValueAtTime(0.001, now);  // start almost silent
+    audioState.audioGain = audioState.audioContext.createGain();
+    audioState.audioGain.gain.setValueAtTime(0.001, now);  // start almost silent
 
-    source.connect(gain);
-    gain.connect(estimAudioContext.destination);
+    audioState.audioSource.connect(audioState.audioGain);
+    audioState.audioGain.connect(audioState.audioContext.destination);
 
     // Start playback
-    source.start(now);
+    audioState.audioSource.start(now);
 
     // Smooth exponential ramp up (sounds natural)
-    gain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
+    audioState.audioGain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
 
     // Set audio cancel timer if a specific duration was set
     if (duration > 0) {
         // Set looping to repeat the audio in case the duration
-        // is set longer than the duration of the file
-        source.loop = true;
+        // is set longer than the duration of the file. 
+        audioState.audioSource.loop = true;
+        audioState.looping = false;
 
         // Start timer
-        audioTimerId = setTimeout(() => {
-            audioTimerId = null; // Remove reference to this timeout
+        audioState.timerId = setTimeout(() => {
+            audioState.timerId = null; // Remove reference to this timeout
             stopAllEstimSignals(15);
         }, duration * 1000);
     }
     if (duration < 0) {
         // A negative value indicates that the playback shall continue
         // until a new command is issued. Only do this if it is allowed
-        if (estimAudioBuffersCanLoop[pattern] || false) {
-
+        if (sensation.canLoop) {
             // Set looping 
-            source.loop = true;
-        } 
+            audioState.audioSource.loop = true;
+            audioState.looping = true;
+        }
         else {
             // No looping allowed. Set to single playback
             duration = 0;
             console.warn(`ESTIM: Continuous playback of non-loopable sensation ${pattern} prevented`);
         }
     }
-    if (duration === 0) { 
+    if (duration === 0) {
         // Play the file exactly one time and then stops
-        source.loop = false;
+        audioState.audioSource.loop = false;
+        audioState.looping = false;
 
         // TODO Register a listener when the audio playback ended
     }
 
     // Remember everything
-    scheduledEstim.startTime = now;
-    scheduledEstim.playing = true;
-
-    // Track for later stopping
-    estimActiveSources.push({ source, gain });
+    audioState.startTime = now;
+    audioState.playing = true;
+    audioState.pattern = pattern;
+    audioState.intensity = intensity;
+    audioState.duration = duration;
 
     // Console + system message
-    if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${stim.file} | intensity ${intensity}% | fade-in 12ms`);
+    if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
     if (!quiet) {
         const context = SillyTavern.getContext();
         context.sendSystemMessage('generic', `Estim pattern "${pattern}" with intensity ${intensity}%`, { isSmallSys: true });
@@ -522,19 +563,28 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
  */
 function stopAllEstimSignals(fadeOutMs = 15, quiet = false) {
 
-    // Nothing to do?
-    if (estimActiveSources.length === 0 || !estimAudioContext) return;
+    // Stop playing audio
+    try {
+        const now = audioState.audioContext.currentTime;
+        if (audioState.audioGain) {
+            audioState.audioGain.gain.cancelScheduledValues(now);
+            audioState.audioGain.gain.exponentialRampToValueAtTime(0.001, now + fadeOutMs / 1000);
+            audioState.audioGain = null;
+        }
+        if (audioState.audioSource) {
+            audioState.audioSource.stop(now + fadeOutMs / 1000 + 0.01);
+            audioState.audioSource = null;
+        }
+    } catch (e) { }
 
-    const now = estimAudioContext.currentTime;
-    estimActiveSources.forEach(({ source, gain }) => {
-        try {
-            gain.gain.cancelScheduledValues(now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + fadeOutMs / 1000);
-            source.stop(now + fadeOutMs / 1000 + 0.01);
-        } catch (e) { }
-    });
+    // Terminate running audio termination timer if there still exists one
+    if (audioState.timerId) {
+        clearTimeout(audioState.timerId);
+        audioState.timerId = null;
+    }
 
-    estimActiveSources = [];
+    // Remember that we stopped
+    audioState.playing = false;
 
     if (DEBUG_MODE) console.log(`ESTIM: All estim signals stopped (fade-out ${fadeOutMs}ms)`);
     if (!quiet) {
@@ -548,12 +598,12 @@ function stopAllEstimSignals(fadeOutMs = 15, quiet = false) {
  * @returns {Promise<AudioContext|null>} A promise resolving to the initialized AudioContext or null if failed.
  */
 async function initAudioContext() {
-    if (estimAudioContext) return estimAudioContext;
+    if (audioState.audioContext) return audioState.audioContext;
 
     try {
-        estimAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (DEBUG_MODE) console.log('ESTIM: Web AudioContext initialized');
-        return estimAudioContext;
+        return audioState.audioContext;
     } catch (err) {
         console.error('ESTIM: Failed to create AudioContext. Audio is not supported in this environment.', err);
         return null;
@@ -567,8 +617,8 @@ async function initAudioContext() {
  * require a user interaction before allowing audio playback.
  */
 async function ensureAudioContext() {
-    if (estimAudioContext?.state === 'suspended') {
-        await estimAudioContext.resume();
+    if (audioState.audioContext?.state === 'suspended') {
+        await audioState.audioContext.resume();
         if (DEBUG_MODE) console.log('ESTIM: AudioContext resumed via user gesture');
     }
 }
@@ -608,15 +658,17 @@ function setupAutoAudioUnlock() {
  */
 async function registerAiFunctionTools() {
     try {
-        const { registerFunctionTool,
+        const {
+            registerFunctionTool,
             unregisterFunctionTool,
             isToolCallingSupported,
             eventSource,
-            event_types } = SillyTavern.getContext();
+            event_types
+        } = SillyTavern.getContext();
 
         // Unregister first to avoid duplicates during development
         unregisterFunctionTool('inflict_physical_sensation');
-        unregisterFunctionTool('estim_set_profile');
+        //unregisterFunctionTool('estim_set_profile');
 
         if (!isToolCallingSupported()) {
             console.warn('ESTIM: Function calling is not supported by your current API.');
@@ -634,9 +686,9 @@ async function registerAiFunctionTools() {
                 pattern: {
                     type: 'string',
                     enum: activeProfile.patternNames,
-                    description: `The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
+                    description: 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
                         'it is also indicated in the following description. Current available sensations:\n' +
-                        '${activeProfile.patternDescriptions}`
+                        activeProfile.patternDescriptions
                 },
                 intensity: {
                     type: 'integer',
@@ -646,7 +698,11 @@ async function registerAiFunctionTools() {
                         'pain sensations will always be painfull regardless of a certain intensity threshold. ' +
                         'To unlock painful intensities, "is_pain_intensity" must be set to true as a safety measure. ' +
                         'Default is 10 (low intensity). The intensity is a multiplier to the intensity indication ' +
-                        'in the description. ',
+                        'in the description.\n' +
+                        'Baseline guidance for matching narration: Select the intensity according to the required ' +
+                        'intensity to match the current tension in the story. Increase the intensity slowly over ' +
+                        'multiple turns. Never rush to the highest intensity right from the start. Build an escalation ' +
+                        'over multiple turns.',
                 },
                 is_pain_intensity: {
                     type: 'boolean',
@@ -661,10 +717,11 @@ async function registerAiFunctionTools() {
                         'the narration text of the current response, set duration to approximately match ' +
                         'the reader\'s time-on-page. Estimate at ~3 words per second (180 wpm) and multiply ' +
                         'by 1.5 to allow for pacing and savoring. Round to the nearest whole second. ' +
-                        'Examples: 30 words ≈ 12 s, 60 words ≈ 24 s, 90 words ≈ 36 s, 150 words ≈ 60 s.\n' +
+                        'Examples: 30 words ≈ 12 s, 60 words ≈ 24 s, 90 words ≈ 36 s, 150 words ≈ 60 s. ' +
+                        'For looped sensations try to select a multiple of the cycle time.\n' +
                         'Exceptions:\n' +
-                        '- For sensations intended to persist across multiple turns or scenes, use a ' +
-                        'negative value (continuous loop).\n' +
+                        '- For sensations intended to persist across multiple turns or scenes ' +
+                        '(e.g. background stimulation), use a negative value (continuous loop).\n' +
                         '- For brief punctuating hits within longer narration (a single zap, a momentary ' +
                         'jolt), use a short fixed duration of 2–5 s regardless of word count.\n' +
                         'For sensations whose narrated arc is shorter than the pattern\'s native length ' +
@@ -684,36 +741,13 @@ async function registerAiFunctionTools() {
             displayName: 'Inflict Physical Sensation',
             description: 'Use this tool to inflict a real physical sensation on the user\'s body. ' +
                 'Call this seamlessly while narrating. Use the descriptions in the "pattern" parameter to ' +
-                'match the story\'s physical sensations. Each description specifies the default duration of ' +
-                'the sensation for one iteration. If looping is allowed is indicated in the pattern description. ' +
-                'IMPORTANT: You must generate the story text and call the tool in the same response. Do ' +
-                'not stop generating text after calling this tool!',
+                'select the physical sensation that matches the narraded story best. Select intensity and ' +
+                'accoding to the rules in the parameter descriptions.',
+            //'IMPORTANT: You must generate the story text and call the tool in the same response. Do ' +
+            //'not stop generating text after calling this tool!',
             parameters: estimSchema,
             stealth: false,
             action: async (args) => {
-
-                // --- QUICK WIN: Failsafe gegen den ST-Backend Crash (OpenRouter Caching) ---
-                const context = SillyTavern.getContext();
-                if (context.chat && context.chat.length > 0) {
-                    // Wir prüfen die letzten 3 Nachrichten sicherheitshalber durch
-                    const startIndex = Math.max(0, context.chat.length - 3);
-                    let chatRepaired = false;
-
-                    for (let i = startIndex; i < context.chat.length; i++) {
-                        if (typeof context.chat[i].mes === 'undefined' || context.chat[i].mes === null) {
-                            context.chat[i].mes = '';
-                            chatRepaired = true;
-                            if (DEBUG_MODE) console.warn(`ESTIM: Repaired empty message at index ${i} to prevent caching crash.`);
-                        }
-                    }
-
-                    // Zwingt das Frontend, die reparierte Historie JETZT ins Backend zu spiegeln
-                    if (chatRepaired && typeof context.saveChat === 'function') {
-                        await context.saveChat();
-                        if (DEBUG_MODE) console.log('ESTIM: Forced backend sync for repaired chat.');
-                    }
-                }
-                // -----------------------------------------------------------------------------
 
                 // Recognize special "stop" command: If intensity is 0 or pattern name is "stop", 
                 // we interpret this as a command to stop the signal immediately without starting a new one. 
@@ -756,7 +790,6 @@ async function registerAiFunctionTools() {
                 scheduledEstim.pattern = args.pattern;
                 scheduledEstim.intensity = intensityValue;
                 scheduledEstim.duration = durationValue;
-                scheduledEstim.painEnabled = pain_enabled;
                 scheduledEstim.pending = true;
 
                 // Wait exactly 1 second to allow SillyTaverns automatic toastr to settle in the UI
@@ -798,11 +831,10 @@ async function registerAiFunctionTools() {
             }
         }); */
 
-        // Register a listener that will fire when the FULL AI generation is finished
-        // (including thinking mode / multi-message responses). This guarantees the
-        // estim signal only plays after ALL messages are visible on screen.
+        // Removes the event listener if already registered
         if (generationEndedHandler) {
             eventSource.removeListener(event_types.GENERATION_ENDED, generationEndedHandler);
+            generationEndedHandler = null;
         }
 
         // Register a listener that will fire when the FULL AI generation is finished
@@ -963,24 +995,18 @@ async function registerUiElements() {
         macros.register('estim_state', {
             description: 'Returns the E-stim state at start of a turn. Inject into prompt.',
             handler: () => {
-                if (!scheduledEstim.playing) {
+                if (!audioState.playing) {
                     return "no sensation inflicted";
                 }
 
                 // Calculate elapsed time
-                const elapsedTime = estimAudioContext.currentTime - scheduledEstim.startTime;
+                const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
 
-                let state = `pattern: \"${scheduledEstim.pattern}\", intensity: ${scheduledEstim.intensity}, ` +
-                    `is_pain_enabled: ${scheduledEstim.painEnabled}, elapsed_time: ${elapsedTime} s`;
+                let state = `pattern: \"${audioState.pattern}\", intensity: ${audioState.intensity}, ` +
+                    `looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
 
-                if (scheduledEstim.duration > 0) {
-                    state = `${state}, total_duration: ${scheduledEstim.duration} s`
-                }
-                if (scheduledEstim.duration < 0) {
-                    state = `${state}, runs continously`
-                }
-                if (scheduledEstim.duration === 0) {
-                    // Not implemented yet
+                if (!audioState.looping) {
+                    state = `${state}, total_duration: ${audioState.duration} s`
                 }
 
                 return state;
