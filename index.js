@@ -149,7 +149,7 @@ function getSettings() {
     // Ensure all default keys exist (helpful after updates)
     for (const key of Object.keys(defaultSettings)) {
         if (!Object.hasOwn(extensionSettings[MODULE_NAME], key)) {
-            extensionSettings[MODULE_NAME][key] = defaultSettings[key];
+            extensionSettings[MODULE_NAME][key] = structuredClone(defaultSettings[key]);
         }
     }
 
@@ -170,9 +170,20 @@ async function updateSettings() {
         context.saveSettingsDebounced();
     }
 
+    // Save profile to disk
+    // In SillyTavern 1.0.6+ the saveSettingsDebounced function is exposed on the window object
+    if (typeof window.saveSettingsDebounced === 'function') {
+        window.saveSettingsDebounced();
+    } else {
+        // Fallback für exotische/ältere ST-Forks
+        const context = SillyTavern.getContext();
+        if (typeof context.saveSettingsDebounced === 'function') {
+            context.saveSettingsDebounced();
+        }
+    }
+
     // Refresh the AI tools so the LLM gets the new sensation descriptions
     await registerAiFunctionTools();
-    await registerCommand();
 
     if (DEBUG_MODE) console.log(`ESTIM: Settings stored and tools updated`);
 }
@@ -204,7 +215,8 @@ async function loadProfileDirectory(folderPath, configFile) {
                     console.log(`ESTIM: Loading profile from ${fileName}`);
                 }
 
-                const profileResp = await fetch(new URL(fileName, baseUrl).href);
+                const profileUrl = new URL(fileName, baseUrl).href;
+                const profileResp = await fetch(profileUrl);
                 if (!profileResp.ok) {
                     // Log a warning but continue loading other profiles if one profile file fails to load
                     console.warn(`ESTIM: Failed to load profile file ${fileName} (HTTP ${profileResp.status}). Skipping this profile.`);
@@ -216,7 +228,7 @@ async function loadProfileDirectory(folderPath, configFile) {
 
                 // Initialize base data that is not in the json
                 profile.name = profile.name || fileName; // Use filename
-                profile.baseUrl = baseUrl;
+                profile.baseUrl = new URL('.', profileUrl).href; // Base URL for resolving relative paths
                 profile.isActive = false;
 
                 // Store profile with name or fileName as unique ID
@@ -231,7 +243,7 @@ async function loadProfileDirectory(folderPath, configFile) {
                 };
 
                 if (DEBUG_MODE) {
-                    console.log(`ESTIM: Profile "${profile.display_name}" loaded from ${fileName}`,
+                    console.log(`ESTIM: Profile "${profile.displayName}" loaded from ${fileName}`,
                         profilesState.profiles[profile.name]);
                 }
             } catch (e) {
@@ -246,7 +258,7 @@ async function loadProfileDirectory(folderPath, configFile) {
 
 /**
  * Loads all profile JSON files listed in profiles/index.json.
- * Each profile contains a display_name and mapping of patterns to sensations.
+ * Each profile contains a displayName and mapping of patterns to sensations.
  */
 async function loadProfiles() {
     profilesState.profiles = {};
@@ -353,7 +365,7 @@ async function activateProfile(profileId, quiet = false) {
     // Update all data
     refreshActiveProfiles();
 
-    if (DEBUG_MODE) console.log(`ESTIM: Activated profile "${profilesState.profiles[profileId].display_name}"`);
+    if (DEBUG_MODE) console.log(`ESTIM: Activated profile "${profilesState.profiles[profileId].displayName}"`);
     return true;
 }
 
@@ -384,7 +396,7 @@ async function deactivateProfile(profileId, quiet = false) {
     // Update all data
     refreshActiveProfiles();
 
-    if (DEBUG_MODE) console.log(`ESTIM: Deactivated profile "${profilesState.profiles[profileId].display_name}"`);
+    if (DEBUG_MODE) console.log(`ESTIM: Deactivated profile "${profilesState.profiles[profileId].displayName}"`);
     return true;
 }
 
@@ -448,7 +460,7 @@ async function refreshActiveProfiles() {
         }
 
         if (DEBUG_MODE) {
-            console.log(`ESTIM: Active profile ${profile.display_name} with patterns: ${Object.keys(profile.sensations || {}).join(', ')}`);
+            console.log(`ESTIM: Active profile ${profile.displayName} with patterns: ${Object.keys(profile.sensations || {}).join(', ')}`);
         }
     }
 
@@ -902,7 +914,7 @@ async function registerAiFunctionTools() {
             },
             action: async (args) => {
                 const success = await switchProfile(args.profile_name);
-                return success ? `Switched to profile ${estimProfiles[args.profile_name].display_name}` : "Profile not found.";
+                return success ? `Switched to profile ${estimProfiles[args.profile_name].displayName}` : "Profile not found.";
             }
         }); */
 
@@ -969,7 +981,7 @@ async function registerCommand() {
                 isRequired: true,
                 typeList: [ARGUMENT_TYPE.STRING],
                 defaultValue: String(''),
-                enumList: profilesState.patternNames,
+                enumProvider: () => profilesState.patternNames,
             }),
             SlashCommandNamedArgument.fromProps({
                 name: 'intensity',
@@ -992,12 +1004,26 @@ async function registerCommand() {
 
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'estim-profile',
-        callback: (args) => switchProfile(args.unnamed),
-        helpString: 'Switch the active estim profile by filename.',
+        callback: async (args) => {
+            const profileId = args.unnamed;
+            const profile = profilesState.profiles[profileId];
+            if (!profile) return `Profile "${profileId}" not found.`;
+
+            if (profile.isActive) {
+                await deactivateProfile(profileId);
+                return `ESTIM: Deactivated profile "${profileId}"`;
+            } else {
+                await activateProfile(profileId);
+                return `ESTIM: Activated profile "${profileId}"`;
+            }
+        },
+        helpString: 'Toggle the active state of an estim profile by filename.',
         unnamedArgumentList: [
             SlashCommandArgument.fromProps({
                 description: 'Profile filename',
-                isRequired: true
+                isRequired: true,
+                // Bonus: Autocomplete für Profilnamen im Chat!
+                enumProvider: () => Object.keys(profilesState.profiles)
             })
         ],
     }));
@@ -1025,7 +1051,7 @@ async function registerUiElements() {
     // Generiere für jedes Profil eine Checkbox
     Object.entries(profilesState.profiles).forEach(([id, data]) => {
         const isChecked = activeIds.includes(id) ? 'checked' : '';
-        const displayName = data.display_name || data.name;
+        const displayName = data.displayName || data.name;
         const author = data.author ? ` <span style="opacity: 0.5; font-size: 0.85em;">(by ${data.author})</span>` : '';
 
         const checkboxHtml = `
@@ -1049,6 +1075,8 @@ async function registerUiElements() {
         } else {
             await deactivateProfile(profileId, false);
         }
+
+        updateSettings(); // Persist settings and update AI tools
     });
 
     // Map channel input names to settings and update AI tools on change
@@ -1137,9 +1165,9 @@ export async function onActivate() {
     }
 
     // Fallback: If no last active profiles are set in the settings, activate the first available profile by default
-    if (settings.lastActiveProfiles.length === 0 && available.length > 0) {
-        settings.lastActiveProfiles = [available[0]];
-    }
+    //if (settings.lastActiveProfiles.length === 0 && available.length > 0) {
+    //    settings.lastActiveProfiles = [available[0]];
+    //}
 
     // Activate all profiles that are listed in the settings
     for (const id of settings.lastActiveProfiles) {
@@ -1149,4 +1177,5 @@ export async function onActivate() {
     }
 
     await registerUiElements();
+    await registerCommand();
 }

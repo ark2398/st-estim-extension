@@ -1,0 +1,31 @@
+{
+  "displayName": "Standard Setup (Balanced)",
+  "name": "standard",
+  "author": "ark2398",
+  "sensations": {
+    "stroke": {
+      "file": "karlie-318a.mp3",
+      "canLoop": true,
+      "isPain": false,
+      "description": "A gentle, rhythmic tingling that feels like a light stroking across the skin."
+    },
+    "shock": {
+      "file": "karlie-318a.mp3",
+      "canLoop": true,
+      "isPain": false,
+      "description": "A short, sharp pinch, similar to a light needle prick."
+    },
+    "pulse": {
+      "file": "karlie-318a.mp3",
+      "canLoop": true,
+      "isPain": false,
+      "description": "A deep, throbbing sensation that mimics a heartbeat and spreads broadly."
+    },
+    "cramp": {
+      "file": "karlie-318a.mp3",
+      "canLoop": true,
+      "isPain": false,
+      "description": "An intense contraction of the muscles, exerting a distinct but still manageable pressure."
+    }
+  }
+}
