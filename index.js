@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.5.0
+ * @version 1.6.0
  * @license AGPL-3.0-or-later
  */
 
@@ -74,28 +74,41 @@ let audioState = {
 /**
  * Defines a singel estim sensation as it is read from file
  * @typedef {Object} EstimSensation
- * @property {string} name
- * @property {string} file
- * @property {boolean} canLoop
- * @property {number} duration
- * @property {Object} audioBuffer
+ * @property {boolean} [disabled] Optional parameter that can be set to true in the config to explicitly disable/remove a pattern from the available sensations. This is useful for users who want to remove certain patterns without deleting them from the config file.
+ * @property {string} name The unique name of the sensation, used as an identifier in the AI tools (e.g. "tickle", "push", "cramp", "shock")
+ * @property {string} description A subjective description of the sensation that is shown to the user and used in the AI tools. This should be written in a way that helps the user understand what kind of feeling to expect, and also helps the AI to choose the right pattern for a given narrative context. The description can include placeholders {{estim_ch1}} and {{estim_ch2}} which will be replaced with the AI-customizable channel names (default "Genitals" and "Buttocks") in the profile descriptions.
+ * @property {string} file The relative path to the audio file that contains the stimulation pattern. This file should be a short audio clip (e.g. 1-10 seconds) that can be played to represent the sensation. The audio files are preloaded into memory for instant playback when triggered by the AI.
+ * @property {boolean} canLoop Indicates whether this sensation can be looped indefinitely when a negative duration is set. If true, the audio will keep playing in a loop until a new command is issued. If false, the audio will only play once even if a negative duration is set. This allows for certain sensations to be designed as one-shots while others can be continuous.
+ * @property {boolean} isPain Indicates whether this sensation is considered a pain sensation. This can be used by the AI to differentiate between pleasurable and painful patterns, and to choose appropriate patterns based on the narrative context and user preferences.
+ * @property {number} duration The duration of the audio file in seconds. This is automatically calculated when the file is loaded and can be used by the AI to understand how long the sensation will last when triggered.
+ * @property {Object} audioBuffer The decoded audio data that is preloaded into memory for instant playback. This is not defined in the config file but is created when the audio file is loaded. The audioBuffer is used by the Web Audio API to play the sound when the AI triggers the sensation.
  */
 
 /**
- * All available estim sensations that we read. The name of
- * the sensation is used as key.
- * @type {EstimSensation{}} 
+ * Defines a singel profile as it is read from file
+ * @typedef {Object} EstimProfile
+ * @property {boolean} isActive Indicates whether this profile is currently active. This is not defined in the config file but is used in the global state to track which profiles are active and should be considered when generating the AI tool descriptions.
+ * @property {string} name
+ * @property {string} displayName
+ * @property {string} author
+ * @property {string} baseUrl The base URL for this profile, used to resolve relative paths for the audio files. This is automatically set when the profile is loaded and is not defined in the config file.
+ * @property {EstimSensation{}} sensations
  */
-globalThis.availableSensations = {};
 
-
-// Profile Management State
-let estimProfiles = {};         // Map of filename -> profile data
-let activeProfile = {
-    id: '',                 // The filename of the currently active profile
-    patternDescriptions: '', // The AI-facing descriptions of the patterns based on the active profile
-    patternNames: []     // The list of pattern names available in the active profile
+/**
+ * Stores the state of the currently active profiles, their descriptions for
+ * the AI tools, and the list of available pattern names. This is updated 
+ * whenever a profile is activated or deactivated, and is used to generate 
+ * the context for the AI tools so they know which patterns are available
+ * and how to describe them.
+ */
+let profilesState = {
+    // @type {EstimProfile{}}
+    profiles: {},             // All available profiles loaded from file, indexed by profile name
+    patternDescriptions: '',  // The AI-facing descriptions of the patterns based on the active profile
+    patternNames: []          // The list of pattern names available in the active profile
 };
+
 
 /**
  * Scheduled stimulation parameters that will be applied when
@@ -113,12 +126,12 @@ let scheduledEstim = {
 };
 
 
-
 // ==== SETTINGS MANAGEMENT ====
+
 
 // Define default settings
 const defaultSettings = Object.freeze({
-    lastActiveProfile: '', // Remembers the last selected profile
+    lastActiveProfiles: [], // Remembers the last selected profiles
     channel1: DEFAULT_CHANNEL_1_NAME, // Name of channel 1 for AI tool context 
     channel2: DEFAULT_CHANNEL_2_NAME  // Name of channel 2 for AI tool context 
 });
@@ -179,32 +192,47 @@ async function updateSettings() {
 async function loadProfileDirectory(folderPath, configFile) {
     const baseUrl = new URL(folderPath, import.meta.url).href;
     try {
+        // Read the index file that lists all profile files in this directory
         const indexResp = await fetch(new URL(configFile, baseUrl).href);
         if (!indexResp.ok) return; // Silently skip if config (like user config) doesn't exist
-
         const profileFiles = await indexResp.json();
 
+        // Iterate through each profile file, load it, and store the data in the global state
         for (const fileName of profileFiles) {
             try {
+                if (DEBUG_MODE) {
+                    console.log(`ESTIM: Loading profile from ${fileName}`);
+                }
+
                 const profileResp = await fetch(new URL(fileName, baseUrl).href);
-                if (profileResp.ok) {
-                    const profileData = await profileResp.json();
+                if (!profileResp.ok) {
+                    // Log a warning but continue loading other profiles if one profile file fails to load
+                    console.warn(`ESTIM: Failed to load profile file ${fileName} (HTTP ${profileResp.status}). Skipping this profile.`);
+                    continue;
+                }
 
-                    // Get the profile name. Preferably it is the 'name' attribute
-                    // If it is not found, use the filename
-                    const id = profileData.name || fileName;
+                // Parse the profile JSON data
+                const profile = await profileResp.json();
 
-                    // Store profile with name or fileName as unique ID
-                    estimProfiles[id] = profileData;
-                    estimProfiles[id].id = id;
+                // Initialize base data that is not in the json
+                profile.name = profile.name || fileName; // Use filename
+                profile.baseUrl = baseUrl;
+                profile.isActive = false;
 
-                    // Add stop pattern description to the profile's sensations for AI tool context
-                    estimProfiles[id].sensations.stop = 'Stop all signals immediately.';
+                // Store profile with name or fileName as unique ID
+                profilesState.profiles[profile.name] = profile;
 
-                    if (DEBUG_MODE) {
-                        console.log(`ESTIM: Profile "${profileData.display_name}" loaded from ${fileName}`,
-                            estimProfiles[id]);
-                    }
+                // Add stop pattern description to the profile's sensations for AI tool context
+                profilesState.profiles[profile.name].sensations.stop = {
+                    name: 'stop',
+                    canLoop: false,
+                    isPain: false,
+                    description: 'Stop all signals immediately.'
+                };
+
+                if (DEBUG_MODE) {
+                    console.log(`ESTIM: Profile "${profile.display_name}" loaded from ${fileName}`,
+                        profilesState.profiles[profile.name]);
                 }
             } catch (e) {
                 console.error(`ESTIM: Failed to load profile file ${fileName}`, e);
@@ -221,56 +249,182 @@ async function loadProfileDirectory(folderPath, configFile) {
  * Each profile contains a display_name and mapping of patterns to sensations.
  */
 async function loadProfiles() {
-    estimProfiles = {};
+    profilesState.profiles = {};
     await loadProfileDirectory(PATH_PROFILES_DEFAULT, FILE_CONFIG_PROFILES);
     await loadProfileDirectory(PATH_PROFILES_LOCAL, FILE_CONFIG_PROFILES);
+
+    await refreshActiveProfiles();
 }
 
 
+
 /**
- * Switches the active device configuration and refreshes the AI tools.
+ * Activates the profile and refreshes the AI tools.
  */
-async function switchProfile(profileId, quiet = false) {
+async function activateProfile(profileId, quiet = false) {
 
     // Validate profile ID and existence
-    const profile = estimProfiles[profileId] || {};
+    const profile = profilesState.profiles[profileId] || {};
     if (!profile) {
         console.error(`ESTIM: Profile ${profileId} not found.`);
         return false;
     }
 
-    // Set active profile and persist in settings
+    if (profile.isActive) {
+        return true; // Already active, no need to refresh
+    }
+
+    // Calculate memory usage (Float32 PCM = 4 bytes per sample per channel)
+    let totalMemoryBytes = 0;
+
+    // Now read all sensations in the profile from the files and make
+    // them available for the AI tools. This is necessary because the profile might 
+    // have been just loaded and the sensations are not yet processed, or 
+    // because the user activated a profile that was previously deactivated 
+    // and we need to make sure all its sensations are ready to be used.
+    for (const [sensationName, sensation] of Object.entries(profile.sensations || {})) {
+
+        // Check if the sensation already has an audioBuffer, which means it is already loaded 
+        // and ready to use.
+        if (sensation.audioBuffer) {
+            continue;
+        }
+
+        // Ensure the sensation object has its name as a property
+        sensation.name = sensationName;
+
+        // Check if user disabled/deleted this pattern explicitly
+        if (sensation.disabled === true) {
+            if (DEBUG_MODE) console.log(`ESTIM: Pattern "${sensationName}" explicitly removed by config.`);
+            continue;
+        }
+
+        // Validate that the sensation has a file. If not, log a warning and skip it.
+        if (!sensation.file) {
+            console.warn(`ESTIM: Pattern "${sensationName}" has no audio file specified.`);
+            continue;
+        }
+
+        try {
+            // Fetch and decode audio file relative to its config folder
+            const audioUrl = new URL(sensation.file, profile.baseUrl).href;
+            const audioResp = await fetch(audioUrl);
+            if (!audioResp.ok) throw new Error(`HTTP ${audioResp.status}`);
+
+            const arrayBuffer = await audioResp.arrayBuffer();
+
+            // Store the decoded audio buffer in the sensation object for later use
+            sensation.audioBuffer = await audioState.audioContext.decodeAudioData(arrayBuffer);
+            sensation.duration = sensation.audioBuffer.duration;
+
+            // Calculate memory usage for this sensation and add it to the total.
+            //  This is useful for debugging and optimization, especially if users add their own
+            //  audio files which might be large.
+            if (sensation.audioBuffer) {
+                totalMemoryBytes += sensation.audioBuffer.length * sensation.audioBuffer.numberOfChannels * 4;
+            }
+
+            // Defaults
+            sensation.canLoop = sensation.canLoop || false;
+            sensation.isPain = sensation.isPain || false;
+            sensation.description = sensation.description || '';
+
+            if (DEBUG_MODE) console.log(`ESTIM: Loaded pattern "${sensation.name}" from ${sensation.file}`);
+
+        } catch (e) {
+            console.error(`ESTIM: Failed to load ${sensation.file}`, e);
+        }
+    }
+
+    if (DEBUG_MODE) {
+        const totalMB = (totalMemoryBytes / (1024 * 1024)).toFixed(2);
+        console.log(`ESTIM: 🎵 Loaded estim patterns — Total preloaded memory: ${totalMB} MB`);
+    }
+
+    // Mark this profile as active
+    profile.isActive = true;
+
+    // Persist it in the settings so that it can be remembered for the next session. 
     const settings = getSettings();
-    activeProfile.id = profileId;
-    settings.lastActiveProfile = profileId;
+    if (!settings.lastActiveProfiles.includes(profileId)) {
+        settings.lastActiveProfiles.push(profileId);
+    }
+
+    // Update all data
+    refreshActiveProfiles();
+
+    if (DEBUG_MODE) console.log(`ESTIM: Activated profile "${profilesState.profiles[profileId].display_name}"`);
+    return true;
+}
+
+
+/**
+ * Disables the profile and refreshes the AI tools.
+ */
+async function deactivateProfile(profileId, quiet = false) {
+
+    // Validate profile ID and existence
+    const profile = profilesState.profiles[profileId] || {};
+    if (!profile) {
+        console.error(`ESTIM: Profile ${profileId} not found.`);
+        return false;
+    }
+
+    if (!profile.isActive) {
+        return true; // Already deactivated, no need to refresh
+    }
+
+    // Turn profile off
+    profile.isActive = false;
+
+    // TODO Persist it in the settings so that it can be remembered for the next session. 
+    const settings = getSettings();
+    settings.lastActiveProfiles = settings.lastActiveProfiles.filter(id => id !== profileId);
+
+    // Update all data
+    refreshActiveProfiles();
+
+    if (DEBUG_MODE) console.log(`ESTIM: Deactivated profile "${profilesState.profiles[profileId].display_name}"`);
+    return true;
+}
+
+
+
+/**
+ * Refreshes the AI tools based on the active profiles
+ */
+async function refreshActiveProfiles() {
 
     // Get current channel names with fallback to defaults if not set. These will be used to 
     // replace the placeholders in the profile descriptions.
+    const settings = getSettings();
     const ch1_text = settings.channel1 || DEFAULT_CHANNEL_1_NAME;
     const ch2_text = settings.channel2 || DEFAULT_CHANNEL_2_NAME;
 
-    // Get sensations from active profile and filter to only include those that 
-    // have a corresponding audio pattern loaded in globalThis.availableSensations. 
-    // This ensures that the AI tool descriptions only include patterns that can 
-    // actually be played.
-    const sensations = Object.fromEntries(
-        Object.entries(profile.sensations || {}).filter(([name]) => name in globalThis.availableSensations)
-    );
+    // This will be filled with descriptions
+    profilesState.patternNames = [];
+    profilesState.patternDescriptions = '';
 
-    if (DEBUG_MODE) console.log('ESTIM: Active patterns after profile filtering:', sensations);
+    // Iterate over all profiles and check if they are active. If they are, add their patterns and descriptions
+    // to the list of available patterns for the AI tool.
+    for (const [profileId, profile] of Object.entries(profilesState.profiles || {})) {
 
-    // Describe patterns based on active profile's subjective descriptions
-    // The placeholders {{estim_ch1}} and {{estim_ch2}} can be used in the 
-    // profile to refer to the AI-customizable channel names, which are replaced here.
-    activeProfile.patternDescriptions = Object.entries(sensations)
-        .map(([name, rawDesc]) => {
+        // If the profile is not active, skip it. This allows users to have multiple profiles in their config
+        //  but only activate the ones they want to use, without having to delete or comment out the others.
+        if (!profile.isActive) {
+            continue;
+        }
+
+        // Iterate over all sensations in the profile and create the description string for each sensation.
+        // This will be used in the AI tool to help the AI understand what each sensation does and how it feels.
+        for (const [name, sensation] of Object.entries(profile.sensations || {})) {
+
             // Replace {{CH1}} and {{CH2}} (Case-Insensitive)
-            let parsedDesc = rawDesc
+            let parsedDesc = sensation.description
                 .replace(/\{\{estim_ch1\}\}/gi, ch1_text)
                 .replace(/\{\{estim_ch2\}\}/gi, ch2_text);
 
             // Add some specifiers at the end
-            const sensation = globalThis.availableSensations[name];
             if (sensation?.duration > 0) {
                 if (sensation?.canLoop) {
                     parsedDesc = `${parsedDesc} (cycle duration: ${sensation.duration.toFixed(1)} s, can loop indefinitely)`;
@@ -280,133 +434,30 @@ async function switchProfile(profileId, quiet = false) {
                 }
             }
 
+            // Add pain specifier at the beginning if it is a pain sensation. This helps the AI 
+            // to differentiate between pleasure and pain sensations, especially when they can 
+            // be made painful by increasing the intensity.
+            if (sensation?.isPain) {
+                parsedDesc = `Pain signal. ${parsedDesc}`;
+            }
 
-            // Return entire description
-            return `  - "${name}": ${parsedDesc}`;
-        })
-        .join('\n');
+            // Store the processed string
+            const uniquePatternName = `${profile.name}/${name}`;
+            profilesState.patternNames.push(uniquePatternName);
+            profilesState.patternDescriptions += `  - "${uniquePatternName}": ${parsedDesc}\n`;
+        }
 
-    // Update the array of available pattern names for the UI and AI tool
-    activeProfile.patternNames = Object.keys(sensations);
-    if (DEBUG_MODE) console.log('ESTIM: Active patterns:', activeProfile.patternNames);
+        if (DEBUG_MODE) {
+            console.log(`ESTIM: Active profile ${profile.display_name} with patterns: ${Object.keys(profile.sensations || {}).join(', ')}`);
+        }
+    }
 
     // Update UI Dropdown if it exists
-    $('#estim_profile_select').val(profileId);
+    //$('#estim_profile_select').val(profileId);
 
     // Stores the settings and updates the strings
     await updateSettings();
-
-    if (!quiet) {
-        toastr.info(`Estim Profile: ${estimProfiles[profileId].display_name}`, 'ESTIM');
-    }
-    if (DEBUG_MODE) console.log(`ESTIM: Switched to profile "${estimProfiles[profileId].display_name}"`);
     return true;
-}
-
-
-// ==== ESTIM FILE LOADING ====
-
-
-/**
- * Helper function to sequentially load a directory and overload the global configuration.
- * This reads the JSON config from a specific folder, downloads the defined audio files, 
- * and stores them in the global globalThis.availableSensations dictionary.
- * @param {string} folderPath The relative path to the folder (e.g. './audio/')
- * @param {string} configFile The name of the json file inside that folder
- */
-async function loadEstimDirectory(folderPath, configFile) {
-    const baseUrl = new URL(folderPath, import.meta.url).href;
-
-    if (DEBUG_MODE) console.log(`ESTIM: Processing config from ${folderPath}${configFile}`);
-
-    try {
-        const resp = await fetch(new URL(configFile, baseUrl).href);
-        if (!resp.ok) return; // Silently skip if config (like user config) doesn't exist
-
-        const data = await resp.json();
-        if (!data.estims) return;
-
-        for (const stim of data.estims) {
-            // Check if user disabled/deleted this pattern explicitly
-            if (stim.disabled === true) {
-                delete globalThis.availableSensations[stim.name];
-                if (DEBUG_MODE) console.log(`ESTIM: Pattern "${stim.name}" explicitly removed by config.`);
-                continue;
-            }
-            if (stim.name && stim.file) {
-                try {
-                    // Fetch and decode audio file relative to its config folder
-                    const audioUrl = new URL(stim.file, baseUrl).href;
-                    const audioResp = await fetch(audioUrl);
-                    if (!audioResp.ok) throw new Error(`HTTP ${audioResp.status}`);
-
-                    const arrayBuffer = await audioResp.arrayBuffer();
-                    const audioBuffer = await audioState.audioContext.decodeAudioData(arrayBuffer);
-
-                    // Overwrite or create new entry in the global state. Only
-                    // copy the parameters we want. Remember the audio buffer
-                    globalThis.availableSensations[stim.name] = {
-                        name: stim.name,
-                        file: stim.file,
-                        canLoop: stim.can_loop || false,
-                        duration: audioBuffer.duration,
-                        audioBuffer: audioBuffer,
-                    };
-
-                    if (DEBUG_MODE) console.log(`ESTIM: Loaded pattern "${stim.name}" from ${stim.file}`);
-                } catch (e) {
-                    console.error(`ESTIM: Failed to load ${stim.file}`, e);
-                }
-            }
-        }
-
-        if (DEBUG_MODE) console.log(`ESTIM: Successfully processed config from ${folderPath}${configFile}`);
-
-    } catch (e) {
-        // Log purely for debugging purposes (e.g. if the JSON is malformed)
-        if (DEBUG_MODE) console.log(`ESTIM: Config ${folderPath}${configFile} skipped.`);
-    }
-}
-
-
-/**
- * Registers the available estim patterns by loading the default and user configurations,
- * and preloading the corresponding audio files into memory. This should be called once 
- * during initialization to set up the global state for available stimulations.
- */
-async function registerEstimFiles() {
-    // Add static stimulation patterns here. Actually right now this
-    // is only the 'stop' command, which is not associated with an audio file but is recognized in the logic.
-    globalThis.availableSensations = {
-        'stop': {
-            name: 'stop',
-            file: null,
-            canLoop: null,
-            duration: 0,
-            audioBuffer: null
-        }
-    };
-
-    // 1. Load the default configuration provided by the extension
-    await loadEstimDirectory(PATH_AUDIO_DEFAULT, FILE_CONFIG_STIMS);
-
-    // 2. Load the user configuration, which will overload/overwrite the default settings
-    // This folder is safely ignored by git (.gitignore) to keep user files private.
-    await loadEstimDirectory(PATH_AUDIO_LOCAL, FILE_CONFIG_STIMS);
-
-    // Calculate memory usage (Float32 PCM = 4 bytes per sample per channel)
-    let totalMemoryBytes = 0;
-    for (const sensation of Object.values(globalThis.availableSensations)) {
-        const buffer = sensation.audioBuffer;
-        if (buffer) {
-            totalMemoryBytes += buffer.length * buffer.numberOfChannels * 4;
-        }
-    }
-
-    if (DEBUG_MODE) {
-        const totalMB = (totalMemoryBytes / (1024 * 1024)).toFixed(2);
-        console.log(`ESTIM: 🎵 Loaded ${Object.keys(globalThis.availableSensations).length} estim patterns — Total preloaded memory: ${totalMB} MB`);
-    }
 }
 
 
@@ -417,14 +468,16 @@ async function registerEstimFiles() {
  * Plays the audio signal corresponding to the given estim pattern, intensity and duration. This is called after 
  * the next message is fully rendered, allowing the user to receive the stimulation at the right moment in the narrative.
  * 
- * @param {string} pattern The name of the estim pattern to use (e.g. "tickle", "push", "cramp", "shock")
+ * @param {string} pattern The name of the estim pattern to use in the format "profileId/patternName" (e.g. "karla/tickle", "karla/push", "karla/cramp", "karla/shock")
  * @param {string|number} intensity The intensity of the signal, from "1" to "100" for pleasurable intensities and "101" to "200" for pain intensities. Default is "10". "0" stops the signal immediately.
  * @param {string|number} duration The duration of the signal in seconds. Default is "0" which plays the file once. -1 means looping
  * @param {boolean} quiet Suppress chat output
  * @returns 
  */
 async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = false) {
-    const sensation = globalThis.availableSensations[pattern];
+
+    // The sensation to play
+    let sensation = {};
 
     // Stop stimulation? (we do not care if the other parameters are correct, because "stop" has top priority)
     // If intensity is 0, we interpret this also as stop without starting a new one.
@@ -433,11 +486,33 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
         return true;
     }
 
-    // Check if the sensation is truely available
-    if (!sensation || !sensation.audioBuffer) {
-        console.error(`ESTIM: Pattern "${pattern}" not found`);
+    // 'pattern' must be in the format "profileId/patternName", so we split it to get the 
+    // profile and pattern name. This allows us to have multiple profiles with patterns 
+    // of the same name without conflicts.
+    const [profileId, patternName] = pattern.split('/');
+
+    // Check again to stop the stimulation
+    if (patternName?.toLowerCase() === 'stop') {
+        stopAllEstimSignals();
+        return true;
+    }
+
+    // Retrieve profile
+    const profile = profilesState.profiles[profileId];
+    if (!profile) {
+        console.error(`ESTIM: Profile "${profileId}" not found for pattern "${pattern}".`);
         if (!quiet) {
-            SillyTavern.getContext().sendSystemMessage('generic', `Unknown sensation pattern "${pattern}"`, { isSmallSys: true });
+            SillyTavern.getContext().sendSystemMessage('generic', `Unknown profile "${profileId}" for pattern "${pattern}"`, { isSmallSys: true });
+        }
+        return false;
+    }
+
+    // Use the specific profile's sensation
+    sensation = profile.sensations?.[patternName];
+    if (!sensation) {
+        console.error(`ESTIM: Pattern "${patternName}" not found in profile "${profileId}".`);
+        if (!quiet) {
+            SillyTavern.getContext().sendSystemMessage('generic', `Unknown pattern "${patternName}" in profile "${profileId}"`, { isSmallSys: true });
         }
         return false;
     }
@@ -675,7 +750,7 @@ async function registerAiFunctionTools() {
             return;
         }
 
-        if (activeProfile.patternNames.length === 0) {
+        if (profilesState.patternNames.length === 0) {
             console.warn('ESTIM: No patterns loaded. Skipping AI tool registration.');
             return;
         }
@@ -685,10 +760,10 @@ async function registerAiFunctionTools() {
             properties: {
                 pattern: {
                     type: 'string',
-                    enum: activeProfile.patternNames,
+                    enum: profilesState.patternNames,
                     description: 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
                         'it is also indicated in the following description. Current available sensations:\n' +
-                        activeProfile.patternDescriptions
+                        profilesState.patternDescriptions
                 },
                 intensity: {
                     type: 'integer',
@@ -758,7 +833,7 @@ async function registerAiFunctionTools() {
 
                 if (!args?.pattern) {
                     return `Missing required parameter "pattern". Please specify which estim pattern ` +
-                        `to play based on the narrative context. Available patterns:\n${activeProfile.patternDescriptions}`;
+                        `to play based on the narrative context. Available patterns:\n${profilesState.patternDescriptions}`;
                 }
                 if (!args?.who) {
                     return `Missing required parameter "who". Please specify the character to stimulate. ` +
@@ -894,7 +969,7 @@ async function registerCommand() {
                 isRequired: true,
                 typeList: [ARGUMENT_TYPE.STRING],
                 defaultValue: String(''),
-                enumList: activeProfile.patternNames,
+                enumList: profilesState.patternNames,
             }),
             SlashCommandNamedArgument.fromProps({
                 name: 'intensity',
@@ -940,17 +1015,43 @@ async function registerUiElements() {
     const getSettingsContainer = () => $(document.getElementById('estim_container') ?? document.getElementById('extensions_settings2'));
     getSettingsContainer().append(settingsHtml);
 
-    // Populate profile switcher dropdown
-    const $select = $('#estim_profile_select');
-    $select.empty();
-    Object.entries(estimProfiles).forEach(([id, data]) => {
-        $select.append(`<option value="${id}">${data.display_name} (by ${data.author || 'Unknown'})</option>`);
+    // --- Checkbox-Liste befüllen ---
+    const $profileList = $('#estim_profile_list');
+    $profileList.empty(); // Entfernt den "Loading profiles..." Text
+
+    const settings = getSettings();
+    const activeIds = settings.lastActiveProfiles || [];
+
+    // Generiere für jedes Profil eine Checkbox
+    Object.entries(profilesState.profiles).forEach(([id, data]) => {
+        const isChecked = activeIds.includes(id) ? 'checked' : '';
+        const displayName = data.display_name || data.name;
+        const author = data.author ? ` <span style="opacity: 0.5; font-size: 0.85em;">(by ${data.author})</span>` : '';
+
+        const checkboxHtml = `
+            <div style="margin-bottom: 6px;">
+                <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+                    <input type="checkbox" class="estim-profile-checkbox" value="${id}" ${isChecked} style="margin-right: 8px; cursor: pointer;">
+                    <span>${displayName}${author}</span>
+                </label>
+            </div>
+        `;
+        $profileList.append(checkboxHtml);
     });
-    $select.val(activeProfile.id);
-    $select.on('change', () => switchProfile($select.val()));
+
+    // Event-Listener für Klicks auf die Checkboxen
+    $profileList.on('change', '.estim-profile-checkbox', async function () {
+        const profileId = $(this).val();
+        const isSelected = $(this).is(':checked');
+
+        if (isSelected) {
+            await activateProfile(profileId, false);
+        } else {
+            await deactivateProfile(profileId, false);
+        }
+    });
 
     // Map channel input names to settings and update AI tools on change
-    const settings = getSettings();
     $('#estim_ch1_input').val(settings.channel1).on('change', async function () {
         settings.channel1 = $(this).val();
         await updateSettings(); // Persist settings and update AI tools
@@ -988,7 +1089,7 @@ async function registerUiElements() {
         // Pattern-Makro: Generiert eine formatierte Liste aller Patterns des aktuellen Profils
         macros.register('estim_patterns', {
             description: 'Returns a list of all available ESTIM patterns for the active profile',
-            handler: () => activeProfile.patternDescriptions
+            handler: () => profilesState.patternDescriptions
         });
 
         // Pattern-Makro: Generiert eine formatierte Liste aller Patterns des aktuellen Profils
@@ -1025,16 +1126,27 @@ async function registerUiElements() {
  */
 export async function onActivate() {
     await initAudioContext();
-    await registerEstimFiles();
     await loadProfiles();
     setupAutoAudioUnlock();
 
-    // Determine initial profile
+    // Determine initial profile(s) to activate based on settings
     const settings = getSettings();
-    const available = Object.keys(estimProfiles);
-    const initial = (available.includes(settings.lastActiveProfile)) ? settings.lastActiveProfile : available[0];
+    const available = Object.keys(profilesState.profiles);
+    if (!Array.isArray(settings.lastActiveProfiles)) {
+        settings.lastActiveProfiles = [];
+    }
 
-    if (initial) await switchProfile(initial, true);
+    // Fallback: If no last active profiles are set in the settings, activate the first available profile by default
+    if (settings.lastActiveProfiles.length === 0 && available.length > 0) {
+        settings.lastActiveProfiles = [available[0]];
+    }
+
+    // Activate all profiles that are listed in the settings
+    for (const id of settings.lastActiveProfiles) {
+        if (available.includes(id)) {
+            await activateProfile(id, true);
+        }
+    }
 
     await registerUiElements();
 }
