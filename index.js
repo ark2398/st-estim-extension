@@ -1045,6 +1045,54 @@ async function registerCommand() {
 }
 
 
+
+/**
+ 
+ */
+async function registerPromptInjection() {
+
+    const { eventSource, event_types } = SillyTavern.getContext();
+
+    // Hänge dich in den Start jeder Textgenerierung ein
+    eventSource.on(event_types.GENERATION_STARTED, () => {
+        const context = SillyTavern.getContext();
+        console.info('ESTIM: GENERATION_STARTED called');
+
+        // 1. Aktuellen Zustand live berechnen
+        let stateString = "no sensation inflicted";
+        if (audioState.playing && audioState.audioContext) {
+            const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
+            stateString = `pattern: "${audioState.pattern}", intensity: ${audioState.intensity}, looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
+            if (!audioState.looping) {
+                stateString += `, total_duration: ${audioState.duration} s`;
+            }
+        }
+
+        const injectionText = `[System Note: The physical e-stim device on the user's body is currently reporting this state: ${stateString} (FRT)]`;
+        console.info('ESTIM: GENERATION_STARTED called, injectionText:', injectionText);
+
+        // 2. Den Text direkt und unsichtbar in den Prompt schleusen
+        // Parameter: (Modul-Name, Text, Position, Depth)
+        // Position 3 = "In-Chat" (verhält sich wie eine Author's Note)
+        // Depth 1 = Eine Nachricht tief (direkt über der letzten Nutzer-Nachricht)
+        if (typeof context.setExtensionPrompt === 'function') {
+            console.info('ESTIM: GENERATION_STARTED setExtensionPrompt called');
+            context.setExtensionPrompt(MODULE_NAME, injectionText, 3, 1);
+        } else if (context.extension_prompts) {
+            // Fallback für exotische/ältere ST-Versionen
+            context.extension_prompts[MODULE_NAME] = {
+                value: injectionText,
+                position: 3,
+                depth: 1
+            };
+        }
+    });
+
+
+
+}
+
+
 /**
  * Register UI elements for this extension. This adds buttons, settings panels, 
  * or other interactive elements to the SillyTavern interface.
@@ -1189,6 +1237,7 @@ export async function onActivate() {
         }
     }
 
+    await registerPromptInjection();
     await registerUiElements();
     await registerCommand();
 }
