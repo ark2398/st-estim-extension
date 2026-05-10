@@ -648,7 +648,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
     if (!quiet) {
         const context = SillyTavern.getContext();
-        context.sendSystemMessage('generic', `Estim pattern "${pattern}" with intensity ${intensity}%`, { isSmallSys: true });
+        context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
     }
 
     return true;
@@ -848,7 +848,7 @@ async function registerAiFunctionTools() {
             //'IMPORTANT: You must generate the story text and call the tool in the same response. Do ' +
             //'not stop generating text after calling this tool!',
             parameters: estimSchema,
-            stealth: false,
+            stealth: true,
             action: async (args) => {
 
                 // Recognize special "stop" command: If intensity is 0 or pattern name is "stop", 
