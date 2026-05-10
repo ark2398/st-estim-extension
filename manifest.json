@@ -4,7 +4,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "ark2398",
-    "version": "1.6.0",
+    "version": "1.7.0",
     "homePage": "https://github.com/ark2398/st-estim-extension",
     "auto_update": false,
     "description": "Brings roleplay to life with synchronized electrostimulation (E-Stim) triggered by the AI.",

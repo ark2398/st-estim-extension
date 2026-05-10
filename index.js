@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.6.0
+ * @version 1.7.0
  * @license AGPL-3.0-or-later
  */
 
@@ -92,7 +92,7 @@ let audioState = {
  * @property {string} displayName
  * @property {string} author
  * @property {string} baseUrl The base URL for this profile, used to resolve relative paths for the audio files. This is automatically set when the profile is loaded and is not defined in the config file.
- * @property {EstimSensation{}} sensations
+ * @property {EstimSensation[]} sensations
  */
 
 /**
@@ -227,20 +227,26 @@ async function loadProfileDirectory(folderPath, configFile) {
                 const profile = await profileResp.json();
 
                 // Initialize base data that is not in the json
-                profile.name = profile.name || fileName; // Use filename
+                profile.name = profile.name || fileName; // Use filename as fallback name if not specified in the profile
                 profile.baseUrl = new URL('.', profileUrl).href; // Base URL for resolving relative paths
                 profile.isActive = false;
+
+                // Delete the key 'isInternal' in all sensations if it exists
+                for (const sensation of profile.sensations || []) {
+                    delete sensation.isInternal;
+                }
 
                 // Store profile with name or fileName as unique ID
                 profilesState.profiles[profile.name] = profile;
 
                 // Add stop pattern description to the profile's sensations for AI tool context
-                profilesState.profiles[profile.name].sensations.stop = {
+                profilesState.profiles[profile.name].sensations.push({
                     name: 'stop',
                     canLoop: false,
                     isPain: false,
+                    isInternal: true, // This pattern is not defined in the config but is always available
                     description: 'Stop all signals immediately.'
-                };
+                });
 
                 if (DEBUG_MODE) {
                     console.log(`ESTIM: Profile "${profile.displayName}" loaded from ${fileName}`,
@@ -294,7 +300,7 @@ async function activateProfile(profileId, quiet = false) {
     // have been just loaded and the sensations are not yet processed, or 
     // because the user activated a profile that was previously deactivated 
     // and we need to make sure all its sensations are ready to be used.
-    for (const [sensationName, sensation] of Object.entries(profile.sensations || {})) {
+    for (const sensation of profile.sensations || []) {
 
         // Check if the sensation already has an audioBuffer, which means it is already loaded 
         // and ready to use.
@@ -302,18 +308,27 @@ async function activateProfile(profileId, quiet = false) {
             continue;
         }
 
-        // Ensure the sensation object has its name as a property
-        sensation.name = sensationName;
+        // Make sure a name is specified
+        sensation.name = sensation.name || sensation.file || 'unknown';
 
         // Check if user disabled/deleted this pattern explicitly
         if (sensation.disabled === true) {
-            if (DEBUG_MODE) console.log(`ESTIM: Pattern "${sensationName}" explicitly removed by config.`);
+            if (DEBUG_MODE) console.log(`ESTIM: Pattern "${sensation.name}" explicitly removed by config.`);
+            continue;
+        }
+
+        // Silently ignore internal patterns that are not meant to be defined in the config file but 
+        // are added automatically (like "stop") and should not be loaded from files. This allows us
+        // to add built-in patterns in the code without worrying about them being defined in the config,
+        // and also to have a clear way for users to define patterns that are only used internally 
+        // and not exposed to the AI tools.
+        if (sensation.isInternal === true) {
             continue;
         }
 
         // Validate that the sensation has a file. If not, log a warning and skip it.
         if (!sensation.file) {
-            console.warn(`ESTIM: Pattern "${sensationName}" has no audio file specified.`);
+            console.warn(`ESTIM: Pattern "${sensation.name}" has no audio file specified.`);
             continue;
         }
 
@@ -429,7 +444,7 @@ async function refreshActiveProfiles() {
 
         // Iterate over all sensations in the profile and create the description string for each sensation.
         // This will be used in the AI tool to help the AI understand what each sensation does and how it feels.
-        for (const [name, sensation] of Object.entries(profile.sensations || {})) {
+        for (const sensation of profile.sensations || []) {
 
             // Replace {{CH1}} and {{CH2}} (Case-Insensitive)
             let parsedDesc = sensation.description
@@ -454,13 +469,13 @@ async function refreshActiveProfiles() {
             }
 
             // Store the processed string
-            const uniquePatternName = `${profile.name}/${name}`;
+            const uniquePatternName = `${profile.name}/${sensation.name}`;
             profilesState.patternNames.push(uniquePatternName);
             profilesState.patternDescriptions += `  - "${uniquePatternName}": ${parsedDesc}\n`;
         }
 
         if (DEBUG_MODE) {
-            console.log(`ESTIM: Active profile ${profile.displayName} with patterns: ${Object.keys(profile.sensations || {}).join(', ')}`);
+            console.log(`ESTIM: Active profile ${profile.displayName} with patterns: ${profilesState.patternNames.join(', ')}`);
         }
     }
 
@@ -509,7 +524,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
         return true;
     }
 
-    // Retrieve profile
+    // Retrieve profile 
     const profile = profilesState.profiles[profileId];
     if (!profile) {
         console.error(`ESTIM: Profile "${profileId}" not found for pattern "${pattern}".`);
@@ -519,8 +534,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
         return false;
     }
 
-    // Use the specific profile's sensation
-    sensation = profile.sensations?.[patternName];
+    // Find the sensation by finding the first sensation that has the pattern name matching the requested one.
+    sensation = profile.sensations?.find(s => s.name === patternName);
     if (!sensation) {
         console.error(`ESTIM: Pattern "${patternName}" not found in profile "${profileId}".`);
         if (!quiet) {
@@ -1075,8 +1090,6 @@ async function registerUiElements() {
         } else {
             await deactivateProfile(profileId, false);
         }
-
-        updateSettings(); // Persist settings and update AI tools
     });
 
     // Map channel input names to settings and update AI tools on change
