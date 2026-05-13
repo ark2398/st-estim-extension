@@ -4,11 +4,12 @@
     "js": "index.js",
     "css": "style.css",
     "author": "ark2398",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "homePage": "https://github.com/ark2398/st-estim-extension",
     "auto_update": false,
     "description": "Brings roleplay to life with synchronized electrostimulation (E-Stim) triggered by the AI.",
     "minimum_client_version": "1.11.0",
+    "generate_interceptor": "estimPromptInterceptor",
     "hooks": {
         "activate": "onActivate"
     }

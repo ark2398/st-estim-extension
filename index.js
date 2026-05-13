@@ -647,8 +647,9 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     // Console + system message
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
     if (!quiet) {
-        const context = SillyTavern.getContext();
-        context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
+        //const context = SillyTavern.getContext();
+        //context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
+        toastr.info(`Sensation "${pattern}" will be played with intensity ${intensity}% ${duration > 0 ? 'for ' +duration+' s' : 'continuously until next signal'}`);
     }
 
     return true;
@@ -689,9 +690,9 @@ function stopAllEstimSignals(fadeOutMs = 15, quiet = false) {
     audioState.playing = false;
 
     if (DEBUG_MODE) console.log(`ESTIM: All estim signals stopped (fade-out ${fadeOutMs}ms)`);
-    if (!quiet) {
-        SillyTavern.getContext().sendSystemMessage('generic', 'Estim stimulation stopped.', { isSmallSys: true });
-    }
+    //if (!quiet) {
+    //    SillyTavern.getContext().sendSystemMessage('generic', 'Estim stimulation stopped.', { isSmallSys: true });
+    //}
 }
 
 
@@ -749,6 +750,31 @@ function setupAutoAudioUnlock() {
     document.addEventListener('touchstart', unlockHandler);
 }
 
+/**
+ * Returns a string representation of the current audio state, including 
+ * the pattern, intensity, looping status, elapsed time, and total 
+ * duration if not looping. This is useful for debugging and for 
+ * providing feedback to the user about what sensation is currently active. 
+ * 
+ * @returns {string} A string representing the current audio state.
+ */
+function getAudioStateString() {
+    if (!audioState.playing) {
+        return "no sensation inflicted";
+    }
+
+    // Calculate elapsed time
+    const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
+
+    let state = `pattern: \"${audioState.pattern}\", intensity: ${audioState.intensity}, ` +
+        `looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
+
+    if (!audioState.looping) {
+        state = `${state}, total_duration: ${audioState.duration} s`
+    }
+
+    return state;
+}
 
 // ==== AI TOOLS & COMMANDS ====
 
@@ -756,7 +782,7 @@ function setupAutoAudioUnlock() {
 /**
  * Register function tools for this extension. This allows the AI to call these 
  * functions during narration.
- * * @returns 
+ * @returns {Promise<void>}
  */
 async function registerAiFunctionTools() {
     try {
@@ -1050,47 +1076,22 @@ async function registerCommand() {
  
  */
 async function registerPromptInjection() {
+    const context = SillyTavern.getContext();
 
-    const { eventSource, event_types } = SillyTavern.getContext();
+    // Wir übergeben einfach das Makro! SillyTavern wird es bei jeder 
+    // Generierung von selbst auswerten, bevor es an das LLM geschickt wird.
 
-    // Hänge dich in den Start jeder Textgenerierung ein
-    eventSource.on(event_types.GENERATION_STARTED, () => {
-        const context = SillyTavern.getContext();
-        console.info('ESTIM: GENERATION_STARTED called');
+    const injectionText = `[System Note: The physical e-stim device on the user's body is currently reporting this state: {{estim_state}} (FRT)]`;
 
-        // 1. Aktuellen Zustand live berechnen
-        let stateString = "no sensation inflicted";
-        if (audioState.playing && audioState.audioContext) {
-            const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
-            stateString = `pattern: "${audioState.pattern}", intensity: ${audioState.intensity}, looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
-            if (!audioState.looping) {
-                stateString += `, total_duration: ${audioState.duration} s`;
-            }
-        }
-
-        const injectionText = `[System Note: The physical e-stim device on the user's body is currently reporting this state: ${stateString} (FRT)]`;
-        console.info('ESTIM: GENERATION_STARTED called, injectionText:', injectionText);
-
-        // 2. Den Text direkt und unsichtbar in den Prompt schleusen
-        // Parameter: (Modul-Name, Text, Position, Depth)
-        // Position 3 = "In-Chat" (verhält sich wie eine Author's Note)
-        // Depth 1 = Eine Nachricht tief (direkt über der letzten Nutzer-Nachricht)
-        if (typeof context.setExtensionPrompt === 'function') {
-            console.info('ESTIM: GENERATION_STARTED setExtensionPrompt called');
-            context.setExtensionPrompt(MODULE_NAME, injectionText, 3, 1);
-        } else if (context.extension_prompts) {
-            // Fallback für exotische/ältere ST-Versionen
-            context.extension_prompts[MODULE_NAME] = {
-                value: injectionText,
-                position: 3,
-                depth: 1
-            };
-        }
-    });
-
-
+    if (typeof context.setExtensionPrompt === 'function') {
+        // Position 3 = In-Chat (Author's Note Ebene), Depth 1 = Direkt über der letzten Nachricht
+        context.setExtensionPrompt(MODULE_NAME, injectionText, 3, 1);
+    }
 
 }
+
+
+
 
 
 /**
@@ -1185,27 +1186,32 @@ async function registerUiElements() {
         macros.register('estim_state', {
             description: 'Returns the E-stim state at start of a turn. Inject into prompt.',
             handler: () => {
-                if (!audioState.playing) {
-                    return "no sensation inflicted";
-                }
-
-                // Calculate elapsed time
-                const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
-
-                let state = `pattern: \"${audioState.pattern}\", intensity: ${audioState.intensity}, ` +
-                    `looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
-
-                if (!audioState.looping) {
-                    state = `${state}, total_duration: ${audioState.duration} s`
-                }
-
-                return state;
+                return getAudioStateString();
             }
         });
 
         if (DEBUG_MODE) console.log('ESTIM: Custom macros {{estim_ch1}}, {{estim_ch2}} and {{estim_patterns}} registered globally.');
     }
 }
+
+
+// ==== EXTENSION LIFECYCLE METHODS ====
+
+
+globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, type) {
+    // Example: Add a system note before the last user message
+    const systemNote = {
+        is_user: false,
+        name: "System Note",
+        send_date: Date.now(),
+        mes: '[System Note: At the start of the turn the tool inflict_physical_sensation ' +
+            'is inflicting the following sensation on {{user}}: ' + getAudioStateString() + ']',
+    };
+    // Insert before the last message
+    chat.splice(chat.length - 1, 0, systemNote);
+ 
+    console.log('ESTIM: Prompt interceptor called. Current chat:', chat);
+};
 
 
 /**
@@ -1237,7 +1243,6 @@ export async function onActivate() {
         }
     }
 
-    await registerPromptInjection();
     await registerUiElements();
     await registerCommand();
 }
