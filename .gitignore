@@ -2,11 +2,11 @@
 profiles-local/
 .env
 
-describer/estim_sensations.json
+analyzer/estim_sensations.json
 
-describer/audio/*
-describer/context/*
-describer/spectrum/*
-!describer/audio/.gitkeep
-!describer/context/.gitkeep
-!describer/spectrum/.gitkeep
+analyzer/audio/*
+analyzer/context/*
+analyzer/spectrum/*
+!analyzer/audio/.gitkeep
+!analyzer/context/.gitkeep
+!analyzer/spectrum/.gitkeep
