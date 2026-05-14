@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.7.0
+ * @version 1.9.0
  * @license AGPL-3.0-or-later
  */
 
@@ -88,9 +88,11 @@ let audioState = {
  * Defines a singel profile as it is read from file
  * @typedef {Object} EstimProfile
  * @property {boolean} isActive Indicates whether this profile is currently active. This is not defined in the config file but is used in the global state to track which profiles are active and should be considered when generating the AI tool descriptions.
+ * @property {boolean} isSystem Indicates whether this profile is a system profile.
  * @property {string} name
  * @property {string} displayName
  * @property {string} author
+ * @property {string} description A general description of all sensations in this profile.
  * @property {string} baseUrl The base URL for this profile, used to resolve relative paths for the audio files. This is automatically set when the profile is loaded and is not defined in the config file.
  * @property {EstimSensation[]} sensations
  */
@@ -106,7 +108,8 @@ let profilesState = {
     // @type {EstimProfile{}}
     profiles: {},             // All available profiles loaded from file, indexed by profile name
     patternDescriptions: '',  // The AI-facing descriptions of the patterns based on the active profile
-    patternNames: []          // The list of pattern names available in the active profile
+    patternNames: [],          // The list of pattern names available in the active profile
+    profileDescriptions: '' // The AI-facing descriptions of the profiles based on the active profile
 };
 
 
@@ -231,22 +234,11 @@ async function loadProfileDirectory(folderPath, configFile) {
                 profile.baseUrl = new URL('.', profileUrl).href; // Base URL for resolving relative paths
                 profile.isActive = false;
 
-                // Delete the key 'isInternal' in all sensations if it exists
-                for (const sensation of profile.sensations || []) {
-                    delete sensation.isInternal;
-                }
+                // Delete the key 'isSystem' if it exists
+                delete profile.isSystem;
 
                 // Store profile with name or fileName as unique ID
                 profilesState.profiles[profile.name] = profile;
-
-                // Add stop pattern description to the profile's sensations for AI tool context
-                profilesState.profiles[profile.name].sensations.push({
-                    name: 'stop',
-                    canLoop: false,
-                    isPain: false,
-                    isInternal: true, // This pattern is not defined in the config but is always available
-                    description: 'Stop all signals immediately.'
-                });
 
                 if (DEBUG_MODE) {
                     console.log(`ESTIM: Profile "${profile.displayName}" loaded from ${fileName}`,
@@ -267,7 +259,32 @@ async function loadProfileDirectory(folderPath, configFile) {
  * Each profile contains a displayName and mapping of patterns to sensations.
  */
 async function loadProfiles() {
-    profilesState.profiles = {};
+
+    // Clear the set and initialize the system profile with the "stop" sensation, which is 
+    // always available and does not need to be defined in the config file. This ensures 
+    // that there is always a known pattern to stop the stimulation, even if the user 
+    // has not defined any profiles or sensations yet. The system profile is a 
+    // reserved profile that cannot be deactivated and serves as a fallback for the 
+    // stop command.
+    profilesState.profiles = {
+        "system": {
+            "displayName": "System Profile",
+            "name": "system",
+            "author": "System",
+            "isSystem": true, // This profile is not defined in the config but is always available
+            "description": "This profile contains system sensations that are always available, " +
+                "such as the 'stop' command to immediately stop all stimulation.",
+            "sensations": [
+                {
+                    name: 'stop',
+                    canLoop: false,
+                    isPain: false,
+                    description: 'Stop all signals immediately.'
+                }
+            ]
+        }
+    };
+
     await loadProfileDirectory(PATH_PROFILES_DEFAULT, FILE_CONFIG_PROFILES);
     await loadProfileDirectory(PATH_PROFILES_LOCAL, FILE_CONFIG_PROFILES);
 
@@ -317,18 +334,12 @@ async function activateProfile(profileId, quiet = false) {
             continue;
         }
 
-        // Silently ignore internal patterns that are not meant to be defined in the config file but 
-        // are added automatically (like "stop") and should not be loaded from files. This allows us
-        // to add built-in patterns in the code without worrying about them being defined in the config,
-        // and also to have a clear way for users to define patterns that are only used internally 
-        // and not exposed to the AI tools.
-        if (sensation.isInternal === true) {
-            continue;
-        }
-
         // Validate that the sensation has a file. If not, log a warning and skip it.
+        // Ignore warning for internal sensations like "stop" that do not require an audio file, as they are handled separately in the code.
         if (!sensation.file) {
-            console.warn(`ESTIM: Pattern "${sensation.name}" has no audio file specified.`);
+            if (!profile.isSystem) {
+                console.warn(`ESTIM: Pattern "${sensation.name}" has no audio file specified.`);
+            }
             continue;
         }
 
@@ -373,7 +384,7 @@ async function activateProfile(profileId, quiet = false) {
 
     // Persist it in the settings so that it can be remembered for the next session. 
     const settings = getSettings();
-    if (!settings.lastActiveProfiles.includes(profileId)) {
+    if (!settings.lastActiveProfiles.includes(profileId) && !profile.isSystem) {
         settings.lastActiveProfiles.push(profileId);
     }
 
@@ -404,7 +415,7 @@ async function deactivateProfile(profileId, quiet = false) {
     // Turn profile off
     profile.isActive = false;
 
-    // TODO Persist it in the settings so that it can be remembered for the next session. 
+    // Persist
     const settings = getSettings();
     settings.lastActiveProfiles = settings.lastActiveProfiles.filter(id => id !== profileId);
 
@@ -431,6 +442,7 @@ async function refreshActiveProfiles() {
     // This will be filled with descriptions
     profilesState.patternNames = [];
     profilesState.patternDescriptions = '';
+    profilesState.profileDescriptions = '';
 
     // Iterate over all profiles and check if they are active. If they are, add their patterns and descriptions
     // to the list of available patterns for the AI tool.
@@ -442,22 +454,30 @@ async function refreshActiveProfiles() {
             continue;
         }
 
+        // Replace {{CH1}} and {{CH2}} (Case-Insensitive)
+        const parsedProfileDesc = profile.description
+            .replace(/\{\{estim_ch1\}\}/gi, ch1_text)
+            .replace(/\{\{estim_ch2\}\}/gi, ch2_text);
+
+        // Add the profile description to the list of available patterns for the AI tool. 
+        profilesState.profileDescriptions += `  - "${profile.name}": ${parsedProfileDesc}\n`;
+
         // Iterate over all sensations in the profile and create the description string for each sensation.
         // This will be used in the AI tool to help the AI understand what each sensation does and how it feels.
         for (const sensation of profile.sensations || []) {
 
             // Replace {{CH1}} and {{CH2}} (Case-Insensitive)
-            let parsedDesc = sensation.description
+            let parsedSensationDesc = sensation.description
                 .replace(/\{\{estim_ch1\}\}/gi, ch1_text)
                 .replace(/\{\{estim_ch2\}\}/gi, ch2_text);
 
             // Add some specifiers at the end
             if (sensation?.duration > 0) {
                 if (sensation?.canLoop) {
-                    parsedDesc = `${parsedDesc} (cycle duration: ${sensation.duration.toFixed(1)} s, can loop indefinitely)`;
+                    parsedSensationDesc = `${parsedSensationDesc} (cycle duration: ${sensation.duration.toFixed(1)} s, can loop indefinitely)`;
                 }
                 else {
-                    parsedDesc = `${parsedDesc} (maximum duration: ${sensation.duration.toFixed(1)} s)`;
+                    parsedSensationDesc = `${parsedSensationDesc} (maximum duration: ${sensation.duration.toFixed(1)} s)`;
                 }
             }
 
@@ -465,13 +485,13 @@ async function refreshActiveProfiles() {
             // to differentiate between pleasure and pain sensations, especially when they can 
             // be made painful by increasing the intensity.
             if (sensation?.isPain) {
-                parsedDesc = `Pain signal. ${parsedDesc}`;
+                parsedSensationDesc = `Pain signal. ${parsedSensationDesc}`;
             }
 
             // Store the processed string
             const uniquePatternName = `${profile.name}/${sensation.name}`;
             profilesState.patternNames.push(uniquePatternName);
-            profilesState.patternDescriptions += `  - "${uniquePatternName}": ${parsedDesc}\n`;
+            profilesState.patternDescriptions += `  - "${uniquePatternName}": ${parsedSensationDesc}\n`;
         }
 
         if (DEBUG_MODE) {
@@ -552,7 +572,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     }
 
     // Stop any previous signal with a tiny fade-out first
-    stopAllEstimSignals(10, true);
+    // Enable stealth mode to not update the pattern, intensity and duration in the state
+    stopAllEstimSignals(true, 10, true);
 
     // Make sure that the limits are correctly set. Assume that max pain is absolutely, so max pleasure must be below that.
     // And minimum must be below max pleasure
@@ -612,7 +633,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
         // Start timer
         audioState.timerId = setTimeout(() => {
             audioState.timerId = null; // Remove reference to this timeout
-            stopAllEstimSignals(15);
+            stopAllEstimSignals(true, 15); // Stealth mode: Don't erase pattern info
         }, duration * 1000);
     }
     if (duration < 0) {
@@ -664,11 +685,11 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
  * @param {number} fadeOutMs The duration of the fade-out in milliseconds. Default is 15ms for a quick but smooth fade-out.
  * @param {boolean} quiet Suppress chat output
  */
-function stopAllEstimSignals(fadeOutMs = 15, quiet = false) {
+function stopAllEstimSignals(stealth = false, fadeOutMs = 15, quiet = false) {
 
     // Stop playing audio
+    const now = audioState.audioContext.currentTime;
     try {
-        const now = audioState.audioContext.currentTime;
         if (audioState.audioGain) {
             audioState.audioGain.gain.cancelScheduledValues(now);
             audioState.audioGain.gain.exponentialRampToValueAtTime(0.001, now + fadeOutMs / 1000);
@@ -688,6 +709,17 @@ function stopAllEstimSignals(fadeOutMs = 15, quiet = false) {
 
     // Remember that we stopped
     audioState.playing = false;
+
+    // If stealth is true, we do not update the pattern, intensity and duration in the state,
+    // which allows us to keep the old values for the next playback. This is useful when we 
+    // want to quickly stop the audio before starting a new one, without losing the information 
+    // what we played before.
+    if (!stealth) {
+        audioState.startTime = now;
+        audioState.pattern = 'stop';
+        audioState.intensity = 0;
+        audioState.duration = -1;
+    }
 
     if (DEBUG_MODE) console.log(`ESTIM: All estim signals stopped (fade-out ${fadeOutMs}ms)`);
     //if (!quiet) {
@@ -750,31 +782,52 @@ function setupAutoAudioUnlock() {
     document.addEventListener('touchstart', unlockHandler);
 }
 
+
 /**
- * Returns a string representation of the current audio state, including 
- * the pattern, intensity, looping status, elapsed time, and total 
- * duration if not looping. This is useful for debugging and for 
- * providing feedback to the user about what sensation is currently active. 
- * 
- * @returns {string} A string representing the current audio state.
+ * Generates a JSON-like string of the current audio state including
+ * information how the sensation started.
  */
 function getAudioStateString() {
-    if (!audioState.playing) {
-        return "no sensation inflicted";
+    // State when the sensation was started
+    let state = `{ "last_action_triggered_by_you": `;
+    if (audioState.pattern) {
+        state += `{ "pattern": "${audioState.pattern}", "intensity": ${audioState.intensity}`;
+        if (audioState.looping) {
+            state += `, "mode": "looping" }`;
+        } else if (audioState.duration === 0) {
+            state += `, "mode": "native_duration" }`;
+        } else {
+            state += `, "duration_seconds": ${audioState.duration} }`;
+        }
+    }
+    else {
+        state += `"None"`;
     }
 
-    // Calculate elapsed time
-    const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
+    // Current real-time state of the audio (which might differ from the last triggered
+    // action if the duration is long or looping)
+    state = state + `, "current_real_time_state": `
+    if (audioState.playing) {
+        const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
+        state += `{ "pattern": "${audioState.pattern}", "intensity": ${audioState.intensity}, `;
+        state += `"elapsed_time_seconds": ${elapsedTime.toFixed(1)}`;
 
-    let state = `pattern: \"${audioState.pattern}\", intensity: ${audioState.intensity}, ` +
-        `looping: ${audioState.looping}, elapsed_time: ${elapsedTime.toFixed(1)} s`;
-
-    if (!audioState.looping) {
-        state = `${state}, total_duration: ${audioState.duration} s`
+        if (audioState.looping) {
+            state += `, "mode": "continuous_loop" }`;
+        }
+        else {
+            const remaining = Math.max(0, audioState.duration - elapsedTime);
+            state += `, "remaining_duration_seconds": ${remaining.toFixed(1)} }`;
+        }
+    }
+    else {
+        state += `"INACTIVE (No sensation currently inflicted)"`;
     }
 
+    state += ` }`;
     return state;
 }
+
 
 // ==== AI TOOLS & COMMANDS ====
 
@@ -870,7 +923,10 @@ async function registerAiFunctionTools() {
             description: 'Use this tool to inflict a real physical sensation on the user\'s body. ' +
                 'Call this seamlessly while narrating. Use the descriptions in the "pattern" parameter to ' +
                 'select the physical sensation that matches the narraded story best. Select intensity and ' +
-                'accoding to the rules in the parameter descriptions.',
+                'duration according to the rules in the parameter descriptions. Physical sensations are grouped ' +
+                'into profiles. Sensations in the same profile should be used together to create a more complex ' +
+                'sensation experience. The following profiles are currently active:\n' +
+                profilesState.profileDescriptions,
             //'IMPORTANT: You must generate the story text and call the tool in the same response. Do ' +
             //'not stop generating text after calling this tool!',
             parameters: estimSchema,
@@ -973,6 +1029,13 @@ async function registerAiFunctionTools() {
                 try {
                     // Check if estimPattern is set, otherwise we are already finished
                     if (!scheduledEstim.pending) {
+
+                        // No new signal scheduled? No active audio playing?
+                        // This means inactivity -> we deliberately remove the pattern info to indicate that
+                        if (!audioState.playing) {
+                            stopAllEstimSignals();
+                            audioState.pattern = null;
+                        }
                         return;
                     }
 
@@ -1022,7 +1085,7 @@ async function registerCommand() {
                 isRequired: true,
                 typeList: [ARGUMENT_TYPE.STRING],
                 defaultValue: String(''),
-                enumProvider: () => profilesState.patternNames,
+                enumProvider: profilesState.patternNames,
             }),
             SlashCommandNamedArgument.fromProps({
                 name: 'intensity',
@@ -1089,8 +1152,11 @@ async function registerUiElements() {
     const settings = getSettings();
     const activeIds = settings.lastActiveProfiles || [];
 
-    // Generiere für jedes Profil eine Checkbox
+    // Generate for each profile a checkbox. If the profile is active, the checkbox is checked.
+    // Omit the system profiles (isSystem==true) from the list, as they cannot be activated or deactivated by the user.
     Object.entries(profilesState.profiles).forEach(([id, data]) => {
+        if (data.isSystem) return; // Skip system profiles
+
         const isChecked = activeIds.includes(id) ? 'checked' : '';
         const displayName = data.displayName || data.name;
         const author = data.author ? ` <span style="opacity: 0.5; font-size: 0.85em;">(by ${data.author})</span>` : '';
@@ -1177,24 +1243,25 @@ async function registerUiElements() {
 
 globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, type) {
     console.log('ESTIM: Prompt interceptor called. Current chat:', chat, contextSize, type);
-    
-    // Only inject the system note with the audio state at the start of the turn, 
-    // not in the middle of a turn or in the system prompt.
-    if (type !== 'chat') {
-        return chat;
+
+    // No background tasks
+    if (type === 'quiet') {
+        return; // Early Return für Hintergrund-Generierungen
     }
 
     const systemNote = {
         is_user: false,
-        name: "System Note",
+        name: "Hardware State",
         send_date: Date.now(),
-        mes: '[System Note: At the start of the turn the tool inflict_physical_sensation ' +
-            'is inflicting the following sensation on {{user}}: ' + getAudioStateString() + ']',
+        mes: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
+            getAudioStateString() + `. ` +
+            `SYSTEM INSTRUCTION: Acknowledge this physical reality in your narrative. If your last action ` +
+            `has finished naturally, narrate the aftermath. If a sensation is currently running, actively ` +
+            `decide whether to maintain, change, or stop it using the 'inflict_physical_sensation' tool.]`,
     };
+
     // Insert before the last message
     chat.splice(chat.length - 1, 0, systemNote);
-
-    console.log('ESTIM: Prompt interceptor called. Current chat:', chat);
 };
 
 
@@ -1219,6 +1286,13 @@ export async function onActivate() {
     //if (settings.lastActiveProfiles.length === 0 && available.length > 0) {
     //    settings.lastActiveProfiles = [available[0]];
     //}
+
+    // Activate all system profiles by default, as they are not defined in the settings but should always be active.
+    for (const [id, profile] of Object.entries(profilesState.profiles)) {
+        if (profile.isSystem) {
+            await activateProfile(id, true);
+        }
+    }
 
     // Activate all profiles that are listed in the settings
     for (const id of settings.lastActiveProfiles) {
