@@ -649,7 +649,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     if (!quiet) {
         //const context = SillyTavern.getContext();
         //context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
-        toastr.info(`Sensation "${pattern}" will be played with intensity ${intensity}% ${duration > 0 ? 'for ' +duration+' s' : 'continuously until next signal'}`);
+        toastr.info(`Sensation "${pattern}" will be played with intensity ${intensity}% ${duration > 0 ? 'for ' + duration + ' s' : 'continuously until next signal'}`);
     }
 
     return true;
@@ -844,8 +844,8 @@ async function registerAiFunctionTools() {
                         'Baseline guidance for matching narration: When the sensation is meant to accompany ' +
                         'the narration text of the current response, set duration to approximately match ' +
                         'the reader\'s time-on-page. Estimate at ~3 words per second (180 wpm) and multiply ' +
-                        'by 1.5 to allow for pacing and savoring. Round to the nearest whole second. ' +
-                        'Examples: 30 words ≈ 12 s, 60 words ≈ 24 s, 90 words ≈ 36 s, 150 words ≈ 60 s. ' +
+                        'by 2.5 to allow for pacing and savoring. Round to the nearest whole second. ' +
+                        'Examples: 30 words ≈ 25 s, 60 words ≈ 50 s, 90 words ≈ 75 s, 150 words ≈ 125 s. ' +
                         'For looped sensations try to select a multiple of the cycle time.\n' +
                         'Exceptions:\n' +
                         '- For sensations intended to persist across multiple turns or scenes ' +
@@ -1071,29 +1071,6 @@ async function registerCommand() {
 }
 
 
-
-/**
- 
- */
-async function registerPromptInjection() {
-    const context = SillyTavern.getContext();
-
-    // Wir übergeben einfach das Makro! SillyTavern wird es bei jeder 
-    // Generierung von selbst auswerten, bevor es an das LLM geschickt wird.
-
-    const injectionText = `[System Note: The physical e-stim device on the user's body is currently reporting this state: {{estim_state}} (FRT)]`;
-
-    if (typeof context.setExtensionPrompt === 'function') {
-        // Position 3 = In-Chat (Author's Note Ebene), Depth 1 = Direkt über der letzten Nachricht
-        context.setExtensionPrompt(MODULE_NAME, injectionText, 3, 1);
-    }
-
-}
-
-
-
-
-
 /**
  * Register UI elements for this extension. This adds buttons, settings panels, 
  * or other interactive elements to the SillyTavern interface.
@@ -1199,7 +1176,14 @@ async function registerUiElements() {
 
 
 globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, type) {
-    // Example: Add a system note before the last user message
+    console.log('ESTIM: Prompt interceptor called. Current chat:', chat, contextSize, type);
+    
+    // Only inject the system note with the audio state at the start of the turn, 
+    // not in the middle of a turn or in the system prompt.
+    if (type !== 'chat') {
+        return chat;
+    }
+
     const systemNote = {
         is_user: false,
         name: "System Note",
@@ -1209,7 +1193,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     };
     // Insert before the last message
     chat.splice(chat.length - 1, 0, systemNote);
- 
+
     console.log('ESTIM: Prompt interceptor called. Current chat:', chat);
 };
 

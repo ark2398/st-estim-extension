@@ -1,2 +1,12 @@
 # User-specific override
 profiles-local/
+.env
+
+describer/estim_sensations.json
+
+describer/audio/*
+describer/context/*
+describer/spectrum/*
+!describer/audio/.gitkeep
+!describer/context/.gitkeep
+!describer/spectrum/.gitkeep
