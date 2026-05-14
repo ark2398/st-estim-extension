@@ -2,6 +2,7 @@
   "displayName": "Standard Setup (Balanced)",
   "name": "standard",
   "author": "ark2398",
+  "description": "This profile is designed to simulate the sensations of being punished.",
   "sensations": [
     {
       "name": "stroke",
