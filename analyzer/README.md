@@ -47,7 +47,7 @@ source env/bin/activate
 **3. Install required packages:**
 
 ```bash
-pip install librosa matplotlib numpy requests python-dotenv
+pip install librosa matplotlib numpy requests python-dotenv Pillow
 
 ```
 

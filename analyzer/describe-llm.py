@@ -3,6 +3,8 @@ import base64
 import json
 import glob
 import requests
+import io
+from PIL import Image
 from dotenv import load_dotenv
 
 # Load variables from the .env file
@@ -13,23 +15,37 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_NAME = "google/gemini-3.1-pro-preview" # Updated to current model
 
 # --- OPENROUTER APP INFO ---
-APP_TITLE = "SillyTavern Immersion E-Stim Analyzer" # Appears in OpenRouter logs
-APP_URL = "https://github.com/ark2398/st-estim-extension" # Your project URL
+APP_TITLE = "SillyTavern Immersion E-Stim Analyzer" 
+APP_URL = "https://github.com/ark2398/st-estim-extension" 
 
 IMAGE_DIR = "./spectrum"
 CONTEXT_DIR = "./context"
 OUTPUT_FILE = "estim_sensations.json"
 
-def encode_image(image_path):
-    """Encodes an image to a base64 string."""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
+def encode_image(image_path, max_size=(2048, 2048)):
+    """
+    Opens an image, downscales it to save API bandwidth/prevent timeouts,
+    converts it to JPEG, and encodes it to a base64 string.
+    """
+    with Image.open(image_path) as img:
+        # Convert to RGB (drops the alpha channel needed for JPEG format)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        
+        # Resize the image using high-quality downsampling
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        
+        # Save to an in-memory buffer as JPEG
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=85)
+        
+        # Return base64 encoded string
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 def read_context_directory():
     """
     Reads all .txt, .html, and .js files from the context directory 
     and concatenates them into a single string.
-    Returns the combined text and a list of the read filenames.
     """
     combined_context = ""
     read_files = []
@@ -131,16 +147,19 @@ def generate_descriptions():
 
     content_list = [{"type": "text", "text": prompt_text}]
 
+    # Processing and encoding images on the fly
+    print("\n[*] Compressing images for API transfer...")
     for img_path in image_paths:
         b64_image = encode_image(img_path)
         filename = os.path.basename(img_path).replace(".png", ".mp3") 
         content_list.append({"type": "text", "text": f"Image for audio file: {filename}"})
         content_list.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{b64_image}"}
+            # NOTE: We changed the mime type to image/jpeg since we converted it via Pillow!
+            "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}
         })
 
-    print(f"\n[*] Sending data to OpenRouter ({MODEL_NAME})... Please wait.")
+    print(f"[*] Sending optimized data to OpenRouter ({MODEL_NAME})... Please wait.")
     
     try:
         response = requests.post(
@@ -178,10 +197,12 @@ def generate_descriptions():
         
         print(f"\n[+] Success! JSON saved to: {OUTPUT_FILE}\n")
 
+    except requests.exceptions.HTTPError as e:
+        print(f"\n[-] API HTTP Error: {e}")
+        if 'response' in locals() and response.text:
+             print(f"Details: {response.text}")
     except Exception as e:
         print(f"\n[-] An error occurred: {e}")
-        if 'response' in locals():
-            print(f"Details: {response.text}")
 
 if __name__ == "__main__":
     os.makedirs(CONTEXT_DIR, exist_ok=True)
