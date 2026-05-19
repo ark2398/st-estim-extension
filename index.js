@@ -693,8 +693,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         toastrDuration = Math.min(toastrDuration, 15000); // Cap the toast duration at 15 seconds to avoid excessively long toasts for very long sensations
         toastrDuration = Math.max(toastrDuration, 4000); // Minimum duration of 4 seconds to ensure the user has enough time to read the message for short sensations
         toastr.info(
-            `Pattern ${pattern}, intensity ${intensity}%, ${duration > 0 ? duration + ' s' : 'continuously'}, channel: ${targetChannel}`,
-            'ESTIM', // no title
+            `${pattern}, ${intensity}%, ${duration > 0 ? duration + ' s' : 'continuously'}, ${targetChannel}`,
+            'Estim Immersion', // no title
             {
                 timeOut: toastrDuration,// Duration in ms before the toast disappears
                 extendedTimeOut: 3000,  // Duration in ms before the toast disappears after a user hovers over it
