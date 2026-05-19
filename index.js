@@ -689,7 +689,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     if (!quiet) {
         //const context = SillyTavern.getContext();
         //context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
-        toastr.info(`Sensation "${pattern}" will be played with intensity ${intensity}% ${duration > 0 ? 'for ' + duration + ' s' : 'continuously until next signal'}`);
+        toastr.info(`Pattern ${pattern}, intensity ${intensity}%, ${duration > 0 ? duration + ' s' : 'continuously'}, channel: ${targetChannel}`);
     }
 
     return true;
