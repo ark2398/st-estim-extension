@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.9.0
+ * @version 1.10.0
  * @license AGPL-3.0-or-later
  */
 
@@ -67,7 +67,8 @@ let audioState = {
     audioContext: null,
     audioSource: null,
     audioGain: null,
-    timerId: null
+    timerId: null,
+    targetChannel: 'both' // 'both' (default), 'ch1', or 'ch2'
 };
 
 
@@ -125,7 +126,8 @@ let scheduledEstim = {
     pending: false,
     pattern: '',
     intensity: 10,
-    duration: 0
+    duration: 0,
+    targetChannel: 'both'
 };
 
 
@@ -518,10 +520,11 @@ async function refreshActiveProfiles() {
  * @param {string} pattern The name of the estim pattern to use in the format "profileId/patternName" (e.g. "karla/tickle", "karla/push", "karla/cramp", "karla/shock")
  * @param {string|number} intensity The intensity of the signal, from "1" to "100" for pleasurable intensities and "101" to "200" for pain intensities. Default is "10". "0" stops the signal immediately.
  * @param {string|number} duration The duration of the signal in seconds. Default is "0" which plays the file once. -1 means looping
- * @param {boolean} quiet Suppress chat output
+ * @param {string} targetChannel The channel to play the signal on. Default is 'both'.
+ * @param {boolean} quiet Suppress chat output when set to true. This is useful for internal calls where the message has already been announced or when the stimulation is triggered by a user action rather than the AI.
  * @returns 
  */
-async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = false) {
+async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChannel = 'both', quiet = false) {
 
     // The sensation to play
     let sensation = {};
@@ -614,7 +617,22 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     audioState.audioGain = audioState.audioContext.createGain();
     audioState.audioGain.gain.setValueAtTime(0.001, now);  // start almost silent
 
-    audioState.audioSource.connect(audioState.audioGain);
+    // Channel selection with stereo panning. This allows the AI to choose 
+    // to stimulate only one channel (e.g. only genitals or only buttocks)
+    // or both channels at the same time, which adds more variety and control 
+    // over the sensations.
+    const panner = audioState.audioContext.createStereoPanner();
+    if (targetChannel === 'ch1') {
+        panner.pan.setValueAtTime(-1, now); // 100% left
+    } else if (targetChannel === 'ch2') {
+        panner.pan.setValueAtTime(1, now);  // 100% right
+    } else {
+        panner.pan.setValueAtTime(0, now);  // both channels equally (default)
+    }
+
+    // Connect audio graph: Source -> Panner -> Gain -> Destination
+    audioState.audioSource.connect(panner);
+    panner.connect(audioState.audioGain);
     audioState.audioGain.connect(audioState.audioContext.destination);
 
     // Start playback
@@ -664,6 +682,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, quiet = fa
     audioState.pattern = pattern;
     audioState.intensity = intensity;
     audioState.duration = duration;
+    audioState.targetChannel = targetChannel;
 
     // Console + system message
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
@@ -800,6 +819,7 @@ function getAudioStateString() {
         } else {
             state += `, "duration_seconds": ${audioState.duration} }`;
         }
+        state += `, "target_channel": "${audioState.targetChannel || 'both'}"`;
     }
     else {
         state += `"None"`;
@@ -820,6 +840,7 @@ function getAudioStateString() {
             const remaining = Math.max(0, audioState.duration - elapsedTime);
             state += `, "remaining_duration_seconds": ${remaining.toFixed(1)} }`;
         }
+        state += `, "target_channel": "${audioState.targetChannel || 'both'}"`;
     }
     else {
         state += `"INACTIVE (No sensation currently inflicted)"`;
@@ -861,6 +882,12 @@ async function registerAiFunctionTools() {
             console.warn('ESTIM: No patterns loaded. Skipping AI tool registration.');
             return;
         }
+
+        // Get current channel names with fallback to defaults if not set. These will be used to 
+        // replace the placeholders in the profile descriptions.
+        const settings = getSettings();
+        const ch1_text = settings.channel1 || DEFAULT_CHANNEL_1_NAME;
+        const ch2_text = settings.channel2 || DEFAULT_CHANNEL_2_NAME;
 
         const estimSchema = {
             type: 'object',
@@ -909,6 +936,16 @@ async function registerAiFunctionTools() {
                         'For sensations whose narrated arc is shorter than the pattern\'s native length ' +
                         '(e.g., a quick warning), cap the duration at the narrated beat\'s reading time ' +
                         'rather than letting it run full.',
+                },
+                target_channel: {
+                    type: 'string',
+                    enum: ['both', 'ch1', 'ch2'],
+                    description: `Which body part to stimulate. Select 'both' to stimulate ${ch1_text} and ` +
+                        `${ch2_text}. Select 'ch1' to strictly isolate the signal to: ${ch1_text}. ` +
+                        `Select 'ch2' to strictly isolate the signal to: ${ch2_text}. Default is 'both'. ` +
+                        `Baseline guidance for matching narration: If the narration explicitly focuses on one body part, ` +
+                        `select the corresponding channel to increase immersion. For more general sensations ` +
+                        `or when both body parts are involved in the narration, select 'both'.`
                 },
                 who: {
                     type: 'string',
@@ -975,6 +1012,7 @@ async function registerAiFunctionTools() {
                 scheduledEstim.pattern = args.pattern;
                 scheduledEstim.intensity = intensityValue;
                 scheduledEstim.duration = durationValue;
+                scheduledEstim.targetChannel = args.target_channel || 'both';
                 scheduledEstim.pending = true;
 
                 // Wait exactly 1 second to allow SillyTaverns automatic toastr to settle in the UI
@@ -1041,7 +1079,8 @@ async function registerAiFunctionTools() {
                     }
 
                     scheduledEstim.pending = false;
-                    await playEstimSignal(scheduledEstim.pattern, scheduledEstim.intensity, scheduledEstim.duration);
+                    await playEstimSignal(scheduledEstim.pattern,
+                        scheduledEstim.intensity, scheduledEstim.duration, scheduledEstim.targetChannel);
                 } catch (err) {
                     console.error('ESTIM: Could not play audio:', err);
                 }
@@ -1065,9 +1104,10 @@ async function registerCommand() {
         name: 'estim',
         callback: async (args, value) => {
             const quiet = isTrueBoolean(String(args.quiet));
+            const targetChannel = args.target_channel || 'both';
             if (DEBUG_MODE) console.log('ESTIM command called with arguments:', args, 'and unnamed value:', value);
-            await playEstimSignal(args.pattern, args.intensity, args.duration, quiet);
-            return `ESTIM stimulation triggered: pattern=${args.pattern}, intensity=${args.intensity}, duration=${args.duration}s.`;
+            await playEstimSignal(args.pattern, args.intensity, args.duration, targetChannel, quiet);
+            return `ESTIM stimulation triggered: pattern=${args.pattern}, intensity=${args.intensity}, duration=${args.duration}s, channel=${targetChannel}.`;
         },
         helpString: 'Start an estim stimulation with the specified pattern, intensity and duration.',
         returns: 'Status about the stimulation request.',
@@ -1086,7 +1126,7 @@ async function registerCommand() {
                 isRequired: true,
                 typeList: [ARGUMENT_TYPE.STRING],
                 defaultValue: String(''),
-                enumProvider: profilesState.patternNames,
+                enumProvider: () => profilesState.patternNames
             }),
             SlashCommandNamedArgument.fromProps({
                 name: 'intensity',
@@ -1102,6 +1142,14 @@ async function registerCommand() {
                 isRequired: false,
                 typeList: [ARGUMENT_TYPE.NUMBER],
                 defaultValue: String('0'),
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'target_channel',
+                description: 'Which channel to play on: both, ch1, or ch2. Default is both.',
+                isRequired: false,
+                typeList: [ARGUMENT_TYPE.STRING],
+                defaultValue: String('both'),
+                enumProvider: () => ['both', 'ch1', 'ch2']
             }),
         ],
         unnamedArgumentList: [],
