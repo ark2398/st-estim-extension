@@ -696,6 +696,7 @@ function stopAllEstimSignals(stealth = false, fadeOutMs = 15, quiet = false) {
             audioState.audioGain = null;
         }
         if (audioState.audioSource) {
+            audioState.audioSource.onended = null; // Remove event listener to prevent it from firing after we stopped the audio
             audioState.audioSource.stop(now + fadeOutMs / 1000 + 0.01);
             audioState.audioSource = null;
         }
