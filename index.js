@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.12.0
+ * @version 1.12.1
  * @license AGPL-3.0-or-later
  */
 
@@ -1087,7 +1087,7 @@ async function registerAiFunctionTools() {
                     // percentage-based durations (e.g. "100%", "50%") that adapt to the 
                     // narrative length.
                     let finalDurationSeconds = 0;
-                    const rawDur = scheduledEstim.durationRaw.trim();
+                    const rawDur = String(scheduledEstim.durationRaw || "100%").trim();
                     if (rawDur === '-1') {
                         finalDurationSeconds = -1; // Loop indefinitely until stopped by another command
                     }
