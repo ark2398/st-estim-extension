@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.11.0
+ * @version 1.12.0
  * @license AGPL-3.0-or-later
  */
 
@@ -1027,7 +1027,7 @@ async function registerAiFunctionTools() {
                     `response for the user. Do not stop writing!`;
                 //return `Stimulation "${scheduledEstim.pattern}" inflicted.`;
             },
-            formatMessage: () => 'Estim tool called successfully.',
+            formatMessage: () => '',
             // Wir formatieren den Tool-Aufruf für den Chat wunderschön und minimalistisch:
             //formatMessage: (args) => {
             //    return `<div style="opacity: 0.6; font-size: 0.85em; font-style: italic; margin-top: 5px;">
