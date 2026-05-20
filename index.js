@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.10.0
+ * @version 1.11.0
  * @license AGPL-3.0-or-later
  */
 
@@ -126,7 +126,7 @@ let scheduledEstim = {
     pending: false,
     pattern: '',
     intensity: 10,
-    duration: 0,
+    durationRaw: '0', // The raw duration value as set by the AI, which can be a number in seconds or a percentage string (e.g. "100%")
     targetChannel: 'both'
 };
 
@@ -138,7 +138,8 @@ let scheduledEstim = {
 const defaultSettings = Object.freeze({
     lastActiveProfiles: [], // Remembers the last selected profiles
     channel1: DEFAULT_CHANNEL_1_NAME, // Name of channel 1 for AI tool context 
-    channel2: DEFAULT_CHANNEL_2_NAME  // Name of channel 2 for AI tool context 
+    channel2: DEFAULT_CHANNEL_2_NAME,  // Name of channel 2 for AI tool context 
+    durationStretchFactor: 1.5        // Pacing factor for smart durations
 });
 
 
@@ -692,8 +693,10 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         let toastrDuration = duration > 0 ? duration * 1000 : 8000; // Show the toast for the duration of the sensation, or 8 seconds for indefinite sensations
         toastrDuration = Math.min(toastrDuration, 15000); // Cap the toast duration at 15 seconds to avoid excessively long toasts for very long sensations
         toastrDuration = Math.max(toastrDuration, 4000); // Minimum duration of 4 seconds to ensure the user has enough time to read the message for short sensations
+        const toastrText = `${pattern}, ${intensity}%, ${duration > 0 ? duration + 's' : 'continuously'}, ${targetChannel}`;
+        console.log(`ESTIM: Showing toast "${toastrText}"`);
         toastr.info(
-            `${pattern}, ${intensity}%, ${duration > 0 ? duration + ' s' : 'continuously'}, ${targetChannel}`,
+            toastrText,
             'Estim Immersion', // no title
             {
                 timeOut: toastrDuration,// Duration in ms before the toast disappears
@@ -929,24 +932,14 @@ async function registerAiFunctionTools() {
                     description: 'Whether pain intensity (101-200) shall be available. Default is false.',
                 },
                 duration: {
-                    type: 'integer',
-                    description: 'Duration of the inflicted sensation in seconds. Default is 0, which plays ' +
-                        'the pattern for its native length as indicated in the pattern description. A negative ' +
-                        'value loops the pattern continuously until changed or stopped by another call.\n' +
-                        'Baseline guidance for matching narration: When the sensation is meant to accompany ' +
-                        'the narration text of the current response, set duration to approximately match ' +
-                        'the reader\'s time-on-page. Estimate at ~3 words per second (180 wpm) and multiply ' +
-                        'by 2.5 to allow for pacing and savoring. Round to the nearest whole second. ' +
-                        'Examples: 30 words ≈ 25 s, 60 words ≈ 50 s, 90 words ≈ 75 s, 150 words ≈ 125 s. ' +
-                        'For looped sensations try to select a multiple of the cycle time.\n' +
-                        'Exceptions:\n' +
-                        '- For sensations intended to persist across multiple turns or scenes ' +
-                        '(e.g. background stimulation), use a negative value (continuous loop).\n' +
-                        '- For brief punctuating hits within longer narration (a single zap, a momentary ' +
-                        'jolt), use a short fixed duration of 2–5 s regardless of word count.\n' +
-                        'For sensations whose narrated arc is shorter than the pattern\'s native length ' +
-                        '(e.g., a quick warning), cap the duration at the narrated beat\'s reading time ' +
-                        'rather than letting it run full.',
+                    type: 'string',
+                    description: 'Duration of the inflicted sensation. Default is 0, which plays ' +
+                        'the pattern for its native pattern length as indicated in the pattern description. ' +
+                        'Provide a fixed number for absolute seconds (e.g. "5", "2.5") or a percentage ' +
+                        'based on the narrative length (e.g. "100%", "50%"). "100%" calculates the exact ' +
+                        'reading time of your response. "-1" loops the pattern continuously. ' +
+                        'Baseline guidance: Use fixed short times (e.g. "2") for brief zaps, and mainly ' +
+                        'percentages for sensations accompanying your narrative.'
                 },
                 target_channel: {
                     type: 'string',
@@ -1022,7 +1015,7 @@ async function registerAiFunctionTools() {
                 // Store the parameters for the next signal
                 scheduledEstim.pattern = args.pattern;
                 scheduledEstim.intensity = intensityValue;
-                scheduledEstim.duration = durationValue;
+                scheduledEstim.durationRaw = args.duration; // Store the raw value for reference
                 scheduledEstim.targetChannel = args.target_channel || 'both';
                 scheduledEstim.pending = true;
 
@@ -1089,9 +1082,47 @@ async function registerAiFunctionTools() {
                         return;
                     }
 
+                    // Calculate the final duration in seconds based on the raw input.
+                    // This allows us to support both fixed durations (e.g. "5", "2.5") and 
+                    // percentage-based durations (e.g. "100%", "50%") that adapt to the 
+                    // narrative length.
+                    let finalDurationSeconds = 0;
+                    const rawDur = scheduledEstim.durationRaw.trim();
+                    if (rawDur === '-1') {
+                        finalDurationSeconds = -1; // Loop indefinitely until stopped by another command
+                    }
+                    else if (rawDur === '0') {
+                        finalDurationSeconds = 0; // Play the pattern for its native length 
+                    }
+                    else if (rawDur.endsWith('%')) {
+                        // Get last message from chat
+                        const chat = SillyTavern.getContext().chat;
+                        const lastMessage = chat.length > 0 ? chat[chat.length - 1].mes : "";
+
+                        // Count words in the last message to estimate reading time. 
+                        // We split by whitespace and filter out empty strings.
+                        const wordCount = lastMessage.split(/\s+/).filter(word => word.length > 0).length;
+
+                        // Calculate reading time (~3 words per sec) * stretch
+                        const readingTimeSeconds = (wordCount / 3) * settings.durationStretchFactor;
+
+                        // Apply percentage-based duration
+                        const percent = parseInt(rawDur.replace('%', '')) / 100;
+                        finalDurationSeconds = Math.max(1, Math.round(readingTimeSeconds * percent));
+
+                        if (DEBUG_MODE) {
+                            console.log(`ESTIM: Smart Duration, ${wordCount} words = ${readingTimeSeconds}s. ` +
+                                `Applied ${rawDur} = ${finalDurationSeconds}s`);
+                        }
+                    }
+                    else {
+                        // Fallback: Try to parse as fixed duration in seconds
+                        finalDurationSeconds = parseFloat(rawDur);
+                    }
+
                     scheduledEstim.pending = false;
                     await playEstimSignal(scheduledEstim.pattern,
-                        scheduledEstim.intensity, scheduledEstim.duration, scheduledEstim.targetChannel);
+                        scheduledEstim.intensity, finalDurationSeconds, scheduledEstim.targetChannel);
                 } catch (err) {
                     console.error('ESTIM: Could not play audio:', err);
                 }
@@ -1252,6 +1283,12 @@ async function registerUiElements() {
     $('#estim_ch2_input').val(settings.channel2).on('change', async function () {
         settings.channel2 = $(this).val();
         await updateSettings(); // Persist settings and update AI tools
+    });
+
+    $('#estim_stretch_factor_input').val(settings.durationStretchFactor).on('change', async function () {
+        // Forces the input to be a float (fallback 1.5 if invalid input is given)
+        settings.durationStretchFactor = parseFloat($(this).val()) || 1.5;
+        await updateSettings();
     });
 
     // Add the button to the extensions menu
