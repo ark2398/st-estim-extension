@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.14.1
+ * @version 1.15.0
  * @license AGPL-3.0-or-later
  */
 
@@ -161,6 +161,7 @@ const defaultSettings = Object.freeze({
     minCalibration: null,              // Minimum calibration value for the audio volume
     maxPleasureCalibration: null,      // Maximum calibration value for pleasure sensations
     maxPainCalibration: null,          // Maximum calibration value for pain sensations
+    hideToasts: false                  // Whether to hide the toast notifications when a sensation is played. 
 });
 
 
@@ -746,7 +747,9 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
 
     // Console + system message
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
-    if (!quiet) {
+
+    const settings = getSettings();
+    if (!quiet && !settings.hideToasts) {
         let durationText = '';
         if (duration > 0) {
             durationText = duration + 's';
@@ -758,6 +761,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         if (rawDuration !== null && String(duration) !== String(rawDuration)) {
             durationText += ` (llm: ${rawDuration})`;
         }
+
 
         //const context = SillyTavern.getContext();
         //context.sendSystemMessage('generic', `Sensation "${pattern}" will be played with intensity ${intensity}% for ${duration > 0 ? duration : 'indefinite'} seconds`, { isSmallSys: true });
@@ -1573,6 +1577,7 @@ async function registerUiElements() {
     await registerUiRemote();
     await registerUiProfiles();
     await registerUiChannelNames();
+    await registerUiHideToasts();
     await registerUiStretchFactor();
     await registerUiStopButton();
     await registerUiCalibrationStudio();
@@ -1764,6 +1769,27 @@ async function registerUiChannelNames() {
     });
 }
 
+
+/**
+ * Registers a checkbox in the UI to allow users to hide or show 
+ * the toast notifications when a sensation is played. This gives users 
+ * the option to reduce on-screen distractions and maintain immersion, 
+ * especially during intense story moments when they may want to focus 
+ * solely on the narrative and their physical sensations.
+ */
+async function registerUiHideToasts() {
+    const settings = getSettings();
+    const $toastCheckbox = $('#estim_hide_toasts_checkbox');
+
+    // Sets the checkbox based on the saved setting (default: unchecked, meaning toasts are shown)
+    $toastCheckbox.prop('checked', settings.hideToasts);
+
+    // Event listener for checkbox changes
+    $toastCheckbox.on('change', async function () {
+        settings.hideToasts = $(this).is(':checked');
+        await updateSettings();
+    });
+}
 
 /**
 * Registers a "Stretch Factor" input in the UI to allow 
