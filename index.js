@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.14.0
+ * @version 1.14.1
  * @license AGPL-3.0-or-later
  */
 
@@ -695,12 +695,6 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     panner.connect(audioState.audioGain);
     audioState.audioGain.connect(audioState.audioContext.destination);
 
-    // Start playback
-    audioState.audioSource.start(now);
-
-    // Smooth exponential ramp up (sounds natural)
-    audioState.audioGain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
-
     // Set audio cancel timer if a specific duration was set
     if (duration > 0) {
         // Set looping to repeat the audio in case the duration
@@ -736,6 +730,12 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         // TODO Register a listener when the audio playback ended
     }
 
+    // Start playback
+    audioState.audioSource.start(now);
+
+    // Smooth exponential ramp up (sounds natural)
+    audioState.audioGain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
+
     // Remember everything
     audioState.startTime = now;
     audioState.playing = true;
@@ -747,8 +747,15 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     // Console + system message
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
     if (!quiet) {
-        let durationText = (duration > 0) ? duration + 's' : 'continuously';
-        if (duration != rawDuration) { // Use != to allow type conversion
+        let durationText = '';
+        if (duration > 0) {
+            durationText = duration + 's';
+        } else if (duration < 0) {
+            durationText = 'continuously';
+        } else {
+            durationText = 'native length';
+        }
+        if (rawDuration !== null && String(duration) !== String(rawDuration)) {
             durationText += ` (llm: ${rawDuration})`;
         }
 
