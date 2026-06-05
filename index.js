@@ -1635,8 +1635,10 @@ async function registerUiRemote() {
                 // We read the set intensity (0.0 - 1.0) from the slider
                 const sliderIntensity = parseFloat($(sliderId).val());
 
-                // We play the signal on a loop (-1).
-                await playEstimSignal(restrRemoteState.calibrationPattern, 0, -1, 'both', true, null, null, sliderIntensity);
+                // We play the signal on a loop (-1). Intensity is 'don't care' here, because 
+                // the calibration pattern will ignore it and use the slider value instead. Only
+                // requirement is to set it to a value >0 to avoid interpreting the call as a STOP
+                await playEstimSignal(restrRemoteState.calibrationPattern, 10, -1, 'both', true, null, null, sliderIntensity);
             }
         });
     };
