@@ -52,6 +52,39 @@
                 </small>
             </div>
 
+            <hr class="sysHR" />
+
+            <div class="marginBot5">
+                <label>Calibration Studio</label>
+                <small class="note" style="display:block; margin-bottom:5px;">
+                    Balance the physical intensity of different
+                    audio files to match your hardware.</small>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <select id="estim_calib_pattern" class="text_pole" style="flex: 1;">
+                        <option value="">Select a pattern to calibrate...</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <span style="width: 30px;">Power:</span>
+                    <input id="estim_calib_slider" type="range" min="0.1" max="5.0" step="0.1" value="1.0"
+                        style="flex: 1;">
+                    <span id="estim_calib_value" style="width: 40px; text-align: right;">1.0x</span>
+                </div>
+
+                <div style="display: flex; gap: 5px;">
+                    <div id="estim_calib_test" class="menu_button interactable" style="flex: 1; text-align: center;"
+                        title="Play for 3 seconds at 50% intensity">⚡ Test (50%)</div>
+                    <div id="estim_calib_save" class="menu_button interactable" style="flex: 1; text-align: center;">💾
+                        Save
+                    </div>
+                    <div id="estim_calib_reset" class="menu_button interactable" style="flex: 1; text-align: center;">
+                        Reset
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>

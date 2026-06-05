@@ -9,6 +9,7 @@
       "file": "karlie-318a.mp3",
       "canLoop": true,
       "isPain": false,
+      "calibration": 1.0,
       "description": "A gentle, rhythmic tingling that feels like a light stroking across the skin."
     },
     {
@@ -16,6 +17,7 @@
       "file": "karlie-318a.mp3",
       "canLoop": true,
       "isPain": false,
+      "calibration": 1.0,
       "description": "A short, sharp pinch, similar to a light needle prick."
     },
     {
@@ -23,6 +25,7 @@
       "file": "karlie-318a.mp3",
       "canLoop": true,
       "isPain": false,
+      "calibration": 1.0,
       "description": "A deep, throbbing sensation that mimics a heartbeat and spreads broadly."
     },
     {
@@ -30,6 +33,7 @@
       "file": "karlie-318a.mp3",
       "canLoop": true,
       "isPain": false,
+      "calibration": 1.0,
       "description": "An intense contraction of the muscles, exerting a distinct but still manageable pressure."
     }
   ]

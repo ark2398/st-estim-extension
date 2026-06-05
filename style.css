@@ -1,0 +1,95 @@
+/* Own overwritten calibration values */
+.estim-calib-custom {
+    /* Bright green (looks good in dark mode) */
+    font-weight: 600;
+}
+
+/* Standard values from profile or default (1.0) */
+.estim-calib-default {
+    /* We keep the standard colors of the SillyTavern theme. */
+    /* You can add your own rules here later if needed. */
+}
+
+
+/* --- ESTIM REMOTE CONTROL --- */
+
+
+.estim-openDrawer {
+    display: flex;
+    height: 100%;
+    overflow-y: auto;
+
+    @supports selector(::-webkit-scrollbar-thumb) {
+        animation: hide-scroll var(--animation-duration-2x) backwards;
+    }
+
+    @starting-style {
+        height: 0;
+    }
+}
+
+/* Header & Texts */
+.estim-remote-header {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.estim-remote-intro {
+    font-style: italic;
+    opacity: 0.8;
+    margin-bottom: 15px;
+}
+
+/* Modules (Calibration & Stop) */
+.estim-remote-module {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Calibration Layout */
+.estim-calib-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.estim-calib-label {
+    width: 100px;
+    font-size: 0.9em;
+}
+
+.estim-calib-slider {
+    flex-grow: 1;
+    margin: 0 10px;
+}
+
+/* Buttons */
+.estim-full-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+}
+
+.estim-stop-btn {
+    width: 100%;
+    background-color: rgba(239, 68, 68, 0.5);
+    /* Slightly transparent red */
+    color: white;
+    font-weight: bold;
+    padding: 12px;
+    border-radius: 5px;
+    transition: background-color 0.2s ease;
+}
+
+.estim-stop-btn:hover {
+    background-color: rgba(239, 68, 68, 0.8);
+    /* Stronger red on hover */
+}
+
+/* Utility class for safe toggling */
+.estim-hidden {
+    display: none !important;
+}
