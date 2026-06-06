@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.15.0
+ * @version 1.15.1
  * @license AGPL-3.0-or-later
  */
 
@@ -1487,7 +1487,7 @@ async function registerCommand() {
             return `ESTIM: Remote control opened for pattern "${pattern}".`;
         },
         helpString: 'Manually show the restricted remote control.',
-        returns: 'Status of the remote control UI.',
+        returns: 'Success message.',
         unnamedArgumentList: [],
         namedArgumentList: [
             SlashCommandNamedArgument.fromProps({
@@ -1503,7 +1503,7 @@ async function registerCommand() {
     }));
 
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-        name: 'estim-remote-calibrate',
+        name: 'estim-calibrate',
         callback: async (args, value) => {
             // Which pattern should be tested in the calibration?
             // Fallback to the first available pattern if none is specified
@@ -1522,7 +1522,7 @@ async function registerCommand() {
             return `ESTIM: Remote control calibration opened for pattern "${pattern}".`;
         },
         helpString: 'Manually open the calibration remote control.',
-        returns: 'Status of the remote control UI.',
+        returns: 'Success message.',
         unnamedArgumentList: [],
         namedArgumentList: [
             SlashCommandNamedArgument.fromProps({
