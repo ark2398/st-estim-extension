@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.15.1
+ * @version 1.16.0
  * @license AGPL-3.0-or-later
  */
 
@@ -128,6 +128,7 @@ let scheduledNextAction = {
     pattern: '',
     intensity: 10,
     durationRaw: '0', // The raw duration value as set by the AI, which can be a number in seconds or a percentage string (e.g. "100%")
+    finalDurationSeconds: 0, // The final duration in seconds that is calculated based on the raw duration and the audio file length. This is the value that is actually used to schedule the stop command.
     targetChannel: 'both',
     remoteControlConfig: null // The restricted remote control configuration as specified by the AI in the "restricted_remote_control" parameter. 
 };
@@ -144,7 +145,8 @@ let scheduledNextAction = {
 let restrRemoteState = {
     isOpen: false,
     telemetryQueue: [],
-    calibrationPattern: null
+    calibrationPattern: null,
+    remoteControlConfig: null
 };
 
 
@@ -955,78 +957,23 @@ function getAudioStateString() {
  * @param {*} remoteControlConfig The parameters for the remote control widget.
  */
 function showRemoteControlWidget(pattern, remoteControlConfig = null) {
-
-    // Check if there is at least one module enabled. If not, we do not show the 
-    // remote control at all, because it would be useless and confusing to the user.
-    const isAnyModuleEnabled = remoteControlConfig?.calibration_module?.enabled ||
-        remoteControlConfig?.stop_module?.enabled;
-
     if (DEBUG_MODE) {
-        console.log('ESTIM: Remote control parameters received:', remoteControlConfig,
-            isAnyModuleEnabled
-        );
-    }
-    // Handle special case of hiding in the show function to avoid having 
-    // to implement the hiding logic in the AI tool separately. This allows
-    // the AI to simply call "showRemoteControlWidget" with all modules disabled
-    // to hide the remote control, which is more intuitive and keeps
-    // all remote control related logic in one place.
-    if (!isAnyModuleEnabled) {
-        hideRemoteControlWidget();
-        return true;
+        console.log('ESTIM: Remote control parameters received:', remoteControlConfig);
     }
 
-    // Always remember the calling pattern for possible calibration
+    // Always remember the calling pattern and the configuration
     restrRemoteState.calibrationPattern = pattern;
+    restrRemoteState.remoteControlConfig = remoteControlConfig;
 
-    // Configure CALIBRATION module
-    if (remoteControlConfig?.calibration_module?.enabled) {
-        $('#estim_remote_calibration').removeClass('estim-hidden');
-
-        // Set intro text
-        $('#estim_remote_intro_text').text(remoteControlConfig.calibration_module.intro_text || '');
-
-        // Read the stored values (or default values)
-        const settings = getSettings();
-        const minCalibration = settings.minCalibration || ESTIM_MIN_AUDIOVOLUME;
-        const maxPleasureCalibration = settings.maxPleasureCalibration || ESTIM_MAX_PLEASURE_AUDIOVOLUME;
-        const maxPainCalibration = settings.maxPainCalibration || ESTIM_MAX_PAIN_AUDIOVOLUME;
-
-        $('#estim_calib_min_slider').val(minCalibration);
-        $('#estim_calib_pleasure_slider').val(maxPleasureCalibration);
-        $('#estim_calib_pain_slider').val(maxPainCalibration);
-
-        // increase_only logic 
-        if (isTrueBoolean(String(remoteControlConfig.calibration_module?.increase_only))) {
-            $('#estim_remote_calibration').addClass('estim-increase-only');
-
-            // sets the HTML 'min' attribute to the current value
-            $('#estim_calib_min_slider').attr('min', minCalibration);
-            $('#estim_calib_pleasure_slider').attr('min', maxPleasureCalibration);
-            $('#estim_calib_pain_slider').attr('min', maxPainCalibration);
-        } else {
-            $('#estim_remote_calibration').removeClass('estim-increase-only');
-
-            // Restore standard limits
-            $('#estim_calib_min_slider').attr('min', 0.01);
-            $('#estim_calib_pleasure_slider').attr('min', 0.01);
-            $('#estim_calib_pain_slider').attr('min', 0.01);
-        }
-    } else {
-        $('#estim_remote_calibration').addClass('estim-hidden');
-
-        // Configure all other modules ONLY if the calibration module is not enabled
-
-        // Configure STOP module
-        if (remoteControlConfig.stop_module?.enabled) {
-            $('#estim_remote_stop_module').removeClass('estim-hidden');
-            $('#estim_remote_intro_text').text(remoteControlConfig.stop_module.intro_text || '');
-            $('#estim_remote_stop_btn').text(remoteControlConfig.stop_module.button_label || 'STOP');
-        } else {
-            $('#estim_remote_stop_module').addClass('estim-hidden');
-        }
+    // Do the UI configuration based on the parameters sent by the AI. 
+    // This allows the AI to customize the remote control for each situation.
+    if (!configureRemoteControlWidget()) {
+        // Nothing to show, so we do not open the remote control at all.
+        // This allows the AI to simply call "showRemoteControlWidget" with
+        // parameters that lead to no enabled modules to hide the remote control, 
+        // without having to call the separate "hideRemoteControlWidget" function.
+        return false;
     }
-
 
     // Make it visible
     if ($('#estim_remote_container').hasClass('estim-closedDrawer')) {
@@ -1041,6 +988,98 @@ function showRemoteControlWidget(pattern, remoteControlConfig = null) {
         }
     }
     return true;
+}
+
+
+/**
+ * Configures the remote control UI elements according to the saved configuration 
+ * with the given parameters. This is called by the "showRemoteControlWidget" 
+ * function to set up the remote control based on the AI's instructions.
+ */
+function configureRemoteControlWidget() {
+
+    // Hide everything first and then show only the enabled modules. 
+    // This ensures a clean state and avoids any conflicts between modules, 
+    // especially when the remote control is triggered multiple times with different configurations.
+    $('#estim_remote_calibration').addClass('estim-hidden');
+    $('#estim_remote_trick_module').addClass('estim-hidden');
+    $('#estim_remote_stop_module').addClass('estim-hidden');
+
+    // Check if there is at least one module enabled. If not, we do not show the 
+    // remote control at all, because it would be useless and confusing to the user.
+    const isAnyModuleEnabled =
+        remoteControlConfig?.calibration_module?.enabled ||
+        remoteControlConfig?.stop_module?.enabled ||
+        remoteControlConfig?.trick_or_treat_module?.enabled;
+
+    // Handle special case of hiding in the show function to avoid having 
+    // to implement the hiding logic in the AI tool separately. This allows
+    // the AI to simply call "showRemoteControlWidget" with all modules disabled
+    // to hide the remote control, which is more intuitive and keeps
+    // all remote control related logic in one place.
+    if (!isAnyModuleEnabled) {
+        hideRemoteControlWidget();
+        return false;
+    }
+
+    // Configure CALIBRATION module
+    if (restrRemoteState.remoteControlConfig?.calibration_module?.enabled) {
+        $('#estim_remote_calibration').removeClass('estim-hidden');
+
+        // Set intro text
+        $('#estim_remote_intro_text').text(restrRemoteState.remoteControlConfig.calibration_module.intro_text || '');
+
+        // Read the stored values (or default values)
+        const settings = getSettings();
+        const minCalibration = settings.minCalibration || ESTIM_MIN_AUDIOVOLUME;
+        const maxPleasureCalibration = settings.maxPleasureCalibration || ESTIM_MAX_PLEASURE_AUDIOVOLUME;
+        const maxPainCalibration = settings.maxPainCalibration || ESTIM_MAX_PAIN_AUDIOVOLUME;
+
+        $('#estim_calib_min_slider').val(minCalibration);
+        $('#estim_calib_pleasure_slider').val(maxPleasureCalibration);
+        $('#estim_calib_pain_slider').val(maxPainCalibration);
+
+        // increase_only logic 
+        if (isTrueBoolean(String(restrRemoteState.remoteControlConfig.calibration_module?.increase_only))) {
+            $('#estim_remote_calibration').addClass('estim-increase-only');
+
+            // sets the HTML 'min' attribute to the current value
+            $('#estim_calib_min_slider').attr('min', minCalibration);
+            $('#estim_calib_pleasure_slider').attr('min', maxPleasureCalibration);
+            $('#estim_calib_pain_slider').attr('min', maxPainCalibration);
+        } else {
+            $('#estim_remote_calibration').removeClass('estim-increase-only');
+
+            // Restore standard limits
+            $('#estim_calib_min_slider').attr('min', 0.01);
+            $('#estim_calib_pleasure_slider').attr('min', 0.01);
+            $('#estim_calib_pain_slider').attr('min', 0.01);
+        }
+
+        // Do not allow further modules, so always return to the caller
+        return true;
+    }
+
+    // Configure TRICK OR TREAT module (must sit before STOP module because of the shared button)
+    if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
+        $('#estim_remote_trick_module').removeClass('estim-hidden');
+        $('#estim_remote_intro_text').text(restrRemoteState.remoteControlConfig.trick_or_treat_module.intro_text || '');
+        $('#estim_remote_trick_btn').text(restrRemoteState.remoteControlConfig.trick_or_treat_module.button_label || 'Reveal Secret');
+
+        // Return now. This hides the STOP module until it is activated (if enabled by the AI)
+        return true;
+    }
+
+    // Configure STOP module (only visible if Trick-Module is OFF)
+    if (restrRemoteState.remoteControlConfig?.stop_module?.enabled) {
+        $('#estim_remote_stop_module').removeClass('estim-hidden');
+        $('#estim_remote_intro_text').text(restrRemoteState.remoteControlConfig.stop_module.intro_text || '');
+        $('#estim_remote_stop_btn').text(restrRemoteState.remoteControlConfig.stop_module.button_label || 'STOP');
+
+        return true;
+    }
+
+    return false;
 }
 
 
@@ -1176,9 +1215,12 @@ async function registerAiFunctionTools() {
                         'CRITICAL RULES FOR USAGE: ' +
                         '1. SCARCITY: Do NOT spam this UI. By default, KEEP IT HIDDEN (disable all modules) to enforce the user\'s helplessness and maintain immersion. ' +
                         '2. NARRATIVE SYNC: Only show the remote if your character explicitly grants the user a choice, a test of endurance, or a moment of mercy in the dialogue. ' +
-                        '3. THE STOP MODULE (Panic Button): Enable this as a psychological taunt ("Go ahead, press stop if you are too weak") or a genuine safety mechanism during extreme scenes. ' +
-                        '4. THE CALIBRATION MODULE: Use this BEFORE a severe punishment or intense pleasure scene to force the user to set their physical limits. ' +
-                        '5. SADISTIC TRAP: Use "increase_only: true" in the calibration module to let the user dial the pain/pleasure UP, but never down. ' +
+                        '3. THE TRICK-OR-TREAT MODULE (Russian Roulette): The pattern/intensity/duration you set in this tool call will be kept SECRET and will NOT play automatically. ' +
+                        'A button appears. The user must click it to receive the hidden sensation. Use this for tests of courage or blind choices. ' +
+                        '4. THE STOP MODULE (Panic Button): Enable this as a psychological taunt ("Go ahead, press stop if you are too weak") or a genuine safety mechanism during extreme scenes. ' +
+                        'If combined with Trick-or-Treat, it will appear AFTER the user presses the secret button. ' +
+                        '5. THE CALIBRATION MODULE: Use this BEFORE a severe scene to force the user to set physical limits. (Can only be used alone). ' +
+                        'Use "increase_only: true" in the calibration module to let the user dial the pain/pleasure UP, but never down (SADISTIC TRAP). ' +
                         'If the character is completely dominating and allows zero control, you MUST hide the remote by disabling all modules.',
                     properties: {
                         stop_module: {
@@ -1188,6 +1230,15 @@ async function registerAiFunctionTools() {
                                 enabled: { type: 'boolean' },
                                 intro_text: { type: 'string', description: 'A short, in-character taunt or instruction (e.g., "Beg for mercy and press it.", "Don\'t you dare touch this.").' },
                                 button_label: { type: 'string', description: 'What the button itself says (e.g., "I GIVE UP", "STOP", "MERCY").' }
+                            }
+                        },
+                        trick_or_treat_module: {
+                            type: 'object',
+                            description: 'A "Russian Roulette" button. Keeps your selected pattern SECRET until the user gathers the courage to press it. Triggers telemetry about their bravery.',
+                            properties: {
+                                enabled: { type: 'boolean' },
+                                intro_text: { type: 'string', description: 'Taunt the user to press it (e.g., "Let\'s play a game. Press it if you dare.").' },
+                                button_label: { type: 'string', description: 'What the button says (e.g., "Take the Risk", "Accept Punishment").' }
                             }
                         },
                         calibration_module: {
@@ -1346,6 +1397,7 @@ async function registerAiFunctionTools() {
                     }
 
                     scheduledNextAction.pending = false;
+                    scheduledNextAction.finalDurationSeconds = finalDurationSeconds;
 
                     // Show the remote control (or disable it)
                     if (scheduledNextAction.remoteControlConfig) {
@@ -1358,7 +1410,8 @@ async function registerAiFunctionTools() {
                     // Detect if the audio should automatically or manually start for the next action
                     // Right now this is always true with the exception of calibration runs
                     const isManualStart =
-                        scheduledNextAction.remoteControlConfig?.calibration_module?.enabled;
+                        scheduledNextAction.remoteControlConfig?.calibration_module?.enabled ||
+                        scheduledNextAction.remoteControlConfig?.trick_or_treat_module?.enabled;
 
                     // In automatic mode start right away
                     if (!isManualStart) {
@@ -1627,6 +1680,35 @@ async function registerUiRemote() {
             `and your button label was: "${$('#estim_remote_stop_btn').text()}". `
         );
         toastr.info("Safeword triggered. Waiting for your next chat turn.");
+    });
+
+    // Trick-or-Treat Button Event
+    $('#estim_remote_trick_btn').on('click', async () => {
+        if (!remoteControlConfig?.trick_or_treat_module?.enabled) return;
+
+        // Hide the Trick-or-Treat button immediately after it's pressed to prevent 
+        // multiple clicks and to increase the psychological impact of the "one chance" choice.
+        remoteControlConfig?.trick_or_treat_module?.enabled = false;
+
+        // Reconfigure the remote to reflect the change (hide the button)
+        // Now shows the STOP button if it is enabled, otherwise hides the remote entirely
+        configureRemoteControlWidget();
+
+        // Telemetry to the KI
+        restrRemoteState.telemetryQueue.push(
+            `The user was brave and clicked the secret button! The hidden sensation is now playing.`
+        );
+
+        // Play the secret stimulation
+        await playEstimSignal(
+            scheduledNextAction.pattern,
+            scheduledNextAction.intensity,
+            scheduledNextAction.finalDurationSeconds,
+            scheduledNextAction.targetChannel,
+            false,
+            null,
+            scheduledNextAction.durationRaw
+        );
     });
 
     // Test buttons for the calibration event listener
@@ -1976,6 +2058,29 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
 
     // Fetch the normal hardware status string
     let telemetryString = getAudioStateString();
+
+    // Check if the user ignored a pending trick challenge and add telemetry if so. 
+    // This allows the LLM to react to the user's choice of ignoring the challenge, 
+    // which can be just as narratively interesting as accepting it. By 
+    // acknowledging the user's decision to avoid the secret button, 
+    // the LLM can adapt the story accordingly, perhaps by describing the character's 
+    // cautious behavior or missed opportunities for unexpected sensations. 
+    // This adds depth and responsiveness to the narrative, making the user's 
+    // choices feel meaningful even when they opt for safety.
+    if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
+        restrRemoteState.telemetryQueue.push(
+            `The user was too scared to press your secret button and completely ignored your challenge! React to their cowardice.`
+        );
+
+        // Hide the Trick-or-Treat button and clean UI
+        remoteControlConfig?.trick_or_treat_module?.enabled = false;
+        configureRemoteControlWidget();
+    }
+
+    // Show current remote control config in the telemetry if it is open. 
+    if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
+        telemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
+    }
 
     // Add remote control events, if any
     if (restrRemoteState.telemetryQueue.length > 0) {
