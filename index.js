@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.16.0
+ * @version 1.16.1
  * @license AGPL-3.0-or-later
  */
 
@@ -1529,6 +1529,11 @@ async function registerCommand() {
 
             // Eine "All-Inclusive" Konfiguration für den manuellen Aufruf
             const manualConfig = {
+                trick_or_treat_module: {
+                    enabled: true,
+                    intro_text: 'Trick or Treat: A Secret Button',
+                    button_label: 'DARE TO PRESS'
+                },
                 stop_module: {
                     enabled: true,
                     intro_text: 'Manual Override: Panic Button',
