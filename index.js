@@ -2073,7 +2073,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
         );
 
         // Hide the Trick-or-Treat button and clean UI
-        remoteControlConfig?.trick_or_treat_module?.enabled = false;
+        remoteControlConfig.trick_or_treat_module.enabled = false;
         configureRemoteControlWidget();
     }
 
