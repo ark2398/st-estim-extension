@@ -981,7 +981,7 @@ function showRemoteControlWidget(pattern, remoteControlConfig = null) {
         $('#estim_remote_container').removeClass('estim-closedDrawer');
 
         // Update state
-        restrRemoteState.isOpen = true;
+        restrRemoteState.restrRemoteState.isOpen = true;
 
         if (DEBUG_MODE) {
             console.log('ESTIM: Showing restricted remote control widget');
@@ -1008,9 +1008,9 @@ function configureRemoteControlWidget() {
     // Check if there is at least one module enabled. If not, we do not show the 
     // remote control at all, because it would be useless and confusing to the user.
     const isAnyModuleEnabled =
-        remoteControlConfig?.calibration_module?.enabled ||
-        remoteControlConfig?.stop_module?.enabled ||
-        remoteControlConfig?.trick_or_treat_module?.enabled;
+        restrRemoteState.remoteControlConfig?.calibration_module?.enabled ||
+        restrRemoteState.remoteControlConfig?.stop_module?.enabled ||
+        restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled;
 
     // Handle special case of hiding in the show function to avoid having 
     // to implement the hiding logic in the AI tool separately. This allows
