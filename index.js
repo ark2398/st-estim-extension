@@ -981,7 +981,7 @@ function showRemoteControlWidget(pattern, remoteControlConfig = null) {
         $('#estim_remote_container').removeClass('estim-closedDrawer');
 
         // Update state
-        restrRemoteState.restrRemoteState.isOpen = true;
+        restrRemoteState.isOpen = true;
 
         if (DEBUG_MODE) {
             console.log('ESTIM: Showing restricted remote control widget');
