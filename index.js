@@ -1689,11 +1689,11 @@ async function registerUiRemote() {
 
     // Trick-or-Treat Button Event
     $('#estim_remote_trick_btn').on('click', async () => {
-        if (!remoteControlConfig?.trick_or_treat_module?.enabled) return;
+        if (!restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) return;
 
         // Hide the Trick-or-Treat button immediately after it's pressed to prevent 
         // multiple clicks and to increase the psychological impact of the "one chance" choice.
-        remoteControlConfig.trick_or_treat_module.enabled = false;
+        restrRemoteState.remoteControlConfig.trick_or_treat_module.enabled = false;
 
         // Reconfigure the remote to reflect the change (hide the button)
         // Now shows the STOP button if it is enabled, otherwise hides the remote entirely
