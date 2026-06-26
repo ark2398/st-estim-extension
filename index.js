@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.16.1
+ * @version 1.17.0
  * @license AGPL-3.0-or-later
  */
 
@@ -163,7 +163,8 @@ const defaultSettings = Object.freeze({
     minCalibration: null,              // Minimum calibration value for the audio volume
     maxPleasureCalibration: null,      // Maximum calibration value for pleasure sensations
     maxPainCalibration: null,          // Maximum calibration value for pain sensations
-    hideToasts: false                  // Whether to hide the toast notifications when a sensation is played. 
+    blindfoldModes: false,             // Whether to hide the toast notifications when a sensation is played. 
+    simulationOnly: false              // Whether to only simulate the sensations without actually outputting them. 
 });
 
 
@@ -553,6 +554,8 @@ async function refreshActiveProfiles() {
  * @returns {Promise<boolean>} Returns a promise that resolves to true if the signal was played successfully, false otherwise.
  */
 async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChannel = 'both', quiet = false, overridePatternCalibration = null, rawDuration = null, overrideAudioCalibration = null) {
+    const settings = getSettings();
+
     // The sensation to play
     let sensation = {};
 
@@ -611,7 +614,6 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     }
     else {
         // Read calibration data
-        const settings = getSettings();
         const minCalibration = settings.minCalibration || ESTIM_MIN_AUDIOVOLUME;
         const maxPleasureCalibration = settings.maxPleasureCalibration || ESTIM_MAX_PLEASURE_AUDIOVOLUME;
         const maxPainCalibration = settings.maxPainCalibration || ESTIM_MAX_PAIN_AUDIOVOLUME;
@@ -733,8 +735,12 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         // TODO Register a listener when the audio playback ended
     }
 
-    // Start playback
-    audioState.audioSource.start(now);
+    // Start playback if we are not in simulation-only mode. This allows
+    // the AI to simulate sensations without actually outputting them,
+    // which is useful for testing and debugging.
+    if (!settings.simulationOnly) {
+        audioState.audioSource.start(now);
+    }
 
     // Smooth exponential ramp up (sounds natural)
     audioState.audioGain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
@@ -750,8 +756,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     // Console + system message
     if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
 
-    const settings = getSettings();
-    if (!quiet && !settings.hideToasts) {
+    if (!quiet && !settings.blindfoldModes) {
         let durationText = '';
         if (duration > 0) {
             durationText = duration + 's';
@@ -1635,7 +1640,8 @@ async function registerUiElements() {
     await registerUiRemote();
     await registerUiProfiles();
     await registerUiChannelNames();
-    await registerUiHideToasts();
+    await registerUiBlindfoldMode();
+    await registerUiSimulationOnly();
     await registerUiStretchFactor();
     await registerUiStopButton();
     await registerUiCalibrationStudio();
@@ -1864,19 +1870,50 @@ async function registerUiChannelNames() {
  * especially during intense story moments when they may want to focus 
  * solely on the narrative and their physical sensations.
  */
-async function registerUiHideToasts() {
+async function registerUiBlindfoldMode() {
     const settings = getSettings();
     const $toastCheckbox = $('#estim_hide_toasts_checkbox');
 
     // Sets the checkbox based on the saved setting (default: unchecked, meaning toasts are shown)
-    $toastCheckbox.prop('checked', settings.hideToasts);
+    $toastCheckbox.prop('checked', settings.blindfoldModes);
 
     // Event listener for checkbox changes
     $toastCheckbox.on('change', async function () {
-        settings.hideToasts = $(this).is(':checked');
+        settings.blindfoldModes = $(this).is(':checked');
         await updateSettings();
     });
 }
+
+
+/**
+ * Registers a checkbox in the UI to allow users to enable or 
+ * disable "Simulation Only" mode. When enabled, this mode prevents 
+ * any actual sensations from being sent to the user's device, allowing
+ * for safe testing or demonstration of the system without physical
+ * stimulation. This is particularly useful for developers, testers, 
+ * or users who want to preview the functionality without engaging 
+ * in real sensations.
+ */
+async function registerUiSimulationOnly() {
+    const settings = getSettings();
+    const $simulationCheckbox = $('#estim_simulation_only_checkbox');
+
+    // Sets the checkbox based on the saved setting (default: unchecked, meaning sensations are output)
+    $simulationCheckbox.prop('checked', settings.simulationOnly);
+
+    // Event listener for checkbox changes
+    $simulationCheckbox.on('change', async function () {
+        settings.simulationOnly = $(this).is(':checked');
+
+        if (settings.simulationOnly) {
+            // Stop all stimulation if we are switching to simulation-only mode to prevent any real sensations from being sent.
+            stopAllEstimSignals();
+        } 
+
+        await updateSettings();
+    });
+}
+
 
 /**
 * Registers a "Stretch Factor" input in the UI to allow 
