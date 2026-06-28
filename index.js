@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.17.0
+ * @version 1.17.1
  * @license AGPL-3.0-or-later
  */
 
@@ -698,7 +698,16 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     // Connect audio graph: Source -> Panner -> Gain -> Destination
     audioState.audioSource.connect(panner);
     panner.connect(audioState.audioGain);
-    audioState.audioGain.connect(audioState.audioContext.destination);
+
+    if (!settings.simulationOnly) {
+        // Normal mode: Connect to the destination so the audio is actually played. 
+        // This is the default behavior when the AI triggers a sensation.
+        audioState.audioGain.connect(audioState.audioContext.destination);
+    } else {
+        // Simulation only mode: Don't connect to the destination, which effectively mutes 
+        // the audio output. This is useful for testing and debugging without actually playing the sound.
+        if (DEBUG_MODE) console.log(`ESTIM: 🔇 Simulation Only active. Audio hardware disconnected.`);
+    }
 
     // Set audio cancel timer if a specific duration was set
     if (duration > 0) {
@@ -735,12 +744,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         // TODO Register a listener when the audio playback ended
     }
 
-    // Start playback if we are not in simulation-only mode. This allows
-    // the AI to simulate sensations without actually outputting them,
-    // which is useful for testing and debugging.
-    if (!settings.simulationOnly) {
-        audioState.audioSource.start(now);
-    }
+    // Start playback
+    audioState.audioSource.start(now);
 
     // Smooth exponential ramp up (sounds natural)
     audioState.audioGain.gain.exponentialRampToValueAtTime(targetVolume, now + fadeInTime);
@@ -1908,7 +1913,7 @@ async function registerUiSimulationOnly() {
         if (settings.simulationOnly) {
             // Stop all stimulation if we are switching to simulation-only mode to prevent any real sensations from being sent.
             stopAllEstimSignals();
-        } 
+        }
 
         await updateSettings();
     });
