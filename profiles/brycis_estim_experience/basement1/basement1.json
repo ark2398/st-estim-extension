@@ -1,0 +1,43 @@
+{
+  "displayName": "Punishment & Whipping Set",
+  "name": "basement1",
+  "author": "JBK",
+  "description": "This profile is designed to simulate the sensations of being punished with a whip, with a focus on consistent, rhythmic patterns that mimic the strikes of a whip. The sensations in this profile are intended to create a baseline level of discomfort and pain, with escalating patterns that can be used to test endurance and compliance. The final sensations in the profile introduce more aggressive and unpredictable patterns to simulate harsher punishment for wandering eyes.",
+  "sensations": [
+    {
+      "name": "rhythmic_whipping",
+      "file": "x028a.mp3",
+      "canLoop": true,
+      "isPain": true,
+      "description": "True to the Domme's promise of simulation, this track delivers a steady, rhythmic series of pulses applied equally to {{ESTIM_CH1}} and {{ESTIM_CH2}}, mimicking the consistent, calculated strikes of a whip. The sensation is a baseline punishment, maintaining a moderate, firm intensity with grouped bursts of electricity separated by brief, predictable pauses to establish dominance."
+    },
+    {
+      "name": "steady_lashes",
+      "file": "x029a.mp3",
+      "canLoop": true,
+      "isPain": true,
+      "description": "Continuing the baseline punishment theme, this pattern provides consistent, tightly packed pulses to both {{ESTIM_CH1}} and {{ESTIM_CH2}}. The intensity remains unyielding at a moderate level, pulsing rhythmically like steady, inescapable lashes. It delivers a relentless, aching buzz designed to keep the submissive on edge without pushing them into extreme agony."
+    },
+    {
+      "name": "endurance_test",
+      "file": "x030a.mp3",
+      "canLoop": true,
+      "isPain": true,
+      "description": "Designed for the 'I could do this for hours' threat, this sensation features a highly uniform, relentless sequence of electric blocks firing simultaneously across {{ESTIM_CH1}} and {{ESTIM_CH2}}. The pulses are densely packed, maintaining a steady, aching pressure meant to test the submissive's endurance and force compliance over a prolonged period."
+    },
+    {
+      "name": "erratic_shock_treatment",
+      "file": "xh029a.mp3",
+      "canLoop": false,
+      "isPain": true,
+      "description": "A significant escalation into 'harder pain'. This track introduces an aggressive asymmetry, where {{ESTIM_CH2}} receives much sharper, higher-amplitude strikes compared to the grounding buzz on {{ESTIM_CH1}}. The rhythm breaks down from dense, stinging bursts into unpredictable, suspenseful zaps, culminating in a sustained, agonizing ramp at the very end to punish wandering eyes."
+    },
+    {
+      "name": "severe_punishment_strikes",
+      "file": "xh030a.mp3",
+      "canLoop": false,
+      "isPain": true,
+      "description": "The most intense and chaotic punishment in the set, designed to force the submissive to 'LOOK AT MY PUSSY'. It unleashes a series of rapid, high-intensity electrical strikes, heavily favoring {{ESTIM_CH2}} with sharp, biting pain while {{ESTIM_CH1}} receives a harsh backing buzz. The track stutters with isolated, agonizing spikes before dissolving into a solid, escalating wall of electricity in the final seconds."
+    }
+  ]
+}

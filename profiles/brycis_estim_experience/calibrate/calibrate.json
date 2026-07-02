@@ -1,0 +1,22 @@
+{
+  "displayName": "Calibration Patterns",
+  "name": "calibration",
+  "author": "JBK",
+  "description": "Calibration sounds. Only used for testing and calibrating the device, not meant for actual play.",
+  "sensations": [
+    {
+      "name": "normal",
+      "file": "calibrate.mp3",
+      "canLoop": true,
+      "isPain": false,
+      "description": "A simple, steady pattern for basic calibration. Both {{ESTIM_CH1}} and {{ESTIM_CH2}} deliver a consistent, flat current with no variation in intensity or rhythm. It provides a stable baseline sensation to help users find their ideal intensity levels without any distractions. Not meant for actual play."
+    },
+    {
+      "name": "pain",
+      "file": "calibratepain.mp3",
+      "canLoop": true,
+      "isPain": true,
+      "description": "A harsh, high-intensity pattern for pain calibration. Both {{ESTIM_CH1}} and {{ESTIM_CH2}} deliver a strong, unrelenting current with no breaks or variation. It is designed to push the limits of the user's pain threshold, allowing them to safely find their maximum tolerable intensity for punishment scenarios. Not meant for actual play."
+    }
+  ]
+}

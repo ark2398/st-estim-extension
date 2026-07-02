@@ -1,0 +1,131 @@
+function pageLoad() {
+    actionList = [{ action: 'eval', statement: 'page01_01_func0()' }, {
+        action: 'globalButton',
+        subAction: 'add', id: 'nbreak', label: 'Stop, I&#39;m edging!', target: '03-02_1', hotkey: '', placement: 'bottom'
+    }, {
+        action: 'globalButton', subAction: 'add', id: 'nstop', label: 'Stop!', target: '-stop', hotkey: '', placement: 'bottom'
+    }, { action: 'audio', file: '318a.mp3', loops: '0', background: 'False', bpm: '', id: 'audio', volume: '0' }, {
+        action:
+            'eval', statement: '__calib2_func2()'
+    }, { action: "image", file: "Karlie/1503212.jpg" }, {
+        action: 'say', text: "<p>
+    Well, it looks like I have another visitor.</p>
+    <p>Come on in! Are you ready for some fun?</p>", mode: 'timed', style: 'hidden', duration: '20' }, { action: 'audio',
+file: '318a.mp3', loops: '0', background: 'False', bpm: '', id: 'audio', volume: '0' }, {
+    action: 'eval', statement:
+    '__calib2_func2()'
+}, { action: "image", file: "Karlie/1503213.jpg" }, {
+    action: 'say', text: "<p>I didn't expect
+    another victim so soon.</p >
+        <p>I just broke a little boy like you less than an hour ago.</p>", mode: 'timed', style: 'hidden', duration: '20' }, {
+    action: 'audio', file: '319a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action:
+    'eval', statement: '__calib2_func2()'
+}, { action: "image", file: "Karlie/1503214.jpg" }, {
+    action: 'say', text: "<p>He
+    made a real mess and had to lick it all up!</p >
+        <p>Hopefully you are stronger so that we can have a bit more fun.</p>", mode: 'timed', style: 'hidden', duration: '20'
+}, { action: 'audio', file: '319a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0' }, {
+    action:
+    'eval', statement: '__calib2_func2()'
+}, { action: "image", file: "Karlie/1503215.jpg" }, {
+    action: 'say', text: "<p>I
+    bet you can't wait to see me topless, huh?</p>", mode: 'timed', style: 'hidden', duration: '25' }, { action:
+    'audio', file: '319a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval',
+        statement: '__calib2_func2()'
+}, { action: "image", file: "Karlie/1503216.jpg" }, {
+    action: 'say', text: "<p>Well that
+    can be arranged because making you cum is much easier with my boobs out...</p >
+        <p>But...</p>", mode: 'timed', style: 'hidden', duration: '20' }, { action: 'audio', file: '321a.mp3', loops: '1',
+    background: 'False', bpm: '', id: 'audio', volume: '0'
+}, { action: 'eval', statement: '__calib2_func2()' }, {
+    action:
+    "image", file: "Karlie/1503217.jpg"
+}, {
+    action: 'say', text: "<p>...nothing is for free!</p>", mode: 'timed', style:
+    'hidden', duration: '20'
+}, {
+    action: 'audio', file: '320a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio',
+        volume: '0'
+}, { action: 'eval', statement: '__calib2_func2()' }, { action: "image", file: "Karlie/1503218.jpg" }, {
+    action: 'say', text: "<p>I see you can't take your eyes off my amazing body. That's good! It makes the cum inside your
+    cock rise...</p >
+        <p>...which makes it easier for the electricity to force it out!!!</p>", mode: 'timed', style: 'hidden', duration: '30'
+}, { action: 'audio', file: '321a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0' }, {
+    action:
+    'eval', statement: '__calib2_func2()'
+}, { action: "image", file: "Karlie/1503219.jpg" }, {
+    action: 'say', text: "<p>So
+    how about my backside ? You love it too, don't you!</p>
+        < p > I bet you do, all the boys do !</p > ", mode: 'timed', style: 'hidden', duration: '30' }, { action: 'audio', file:
+    '320a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval', statement:
+    'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503220.jpg" }, {
+    action: 'say', text: "<p>Then worship it...
+</p >
+        <p>...while receiving strong stimulation of course!</p>", mode: 'timed', style: 'hidden', duration: '30' }, { action:
+    'audio', file: '321a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval',
+        statement: 'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503221.jpg" }, {
+    action: 'say', text: "<p>Still
+    taking it like a good little electro slave, huh ?</p >
+        <p>You better because I have a lot more in store for you.</p>", mode: 'timed', style: 'hidden', duration: '30' }, {
+    action: 'audio', file: '322a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action:
+    'eval', statement: 'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503222.jpg" }, {
+    action: 'say', text: "<p>I
+    will force the juice out of you!</p >
+        <p>There's no escape from my milking session.</p>", mode: 'timed', style: 'hidden', duration: '30' }, { action: 'audio',
+    file: '322a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval', statement:
+    'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503223.jpg" }, {
+    action: 'say', text: "<p>Come closer, take a
+    good look at my crotch while I shock you some more.</p > ", mode: 'timed', style: 'hidden', duration: '30' }, {
+    action: 'audio', file: '321a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action:
+    'eval', statement: 'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503224.jpg" }, {
+    action: 'say', text: "<p>
+    Can you smell the sweetness of my wet pussy ? You must be dripping by now ? </p >
+        <p>I am beginning to get very wet myself.</p>", mode: 'timed', style: 'hidden', duration: '20' }, { action: 'audio',
+    file: '322a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval', statement:
+    'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503225.jpg" }, {
+    action: 'say', text: "<p>No boy gets away
+    without leaving at least a bit of precum!</p >
+        <p>Are you going to drip for me?</p>", mode: 'timed', style: 'hidden', duration: '20' }, { action: 'audio', file:
+    '323a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval', statement:
+    'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503226.jpg" }, {
+    action: 'say', text: "<p>Most just can't help
+    cumming all over my amazing body though.</p >
+        <p>Can you resist and stay in control?</p>", mode: 'timed', style: 'hidden', duration: '20' }, { action: 'audio', file:
+    '323a.mp3', loops: '1', background: 'False', bpm: '', id: 'audio', volume: '0'
+}, {
+    action: 'eval', statement:
+    'page02_01_func47()'
+}, { action: "image", file: "Karlie/1503227.jpg" }, {
+    action: 'say', text: "<p>What a shame, our
+    time together is over already...</p >
+        <p>But you can tell Bryci that you did well! Now go and see her.</p>", mode: 'timed', style: 'hidden', duration: '30' },
+    { action: 'globalButton', subAction: 'remove', id: 'nbreak' }, {
+        action: 'globalButton', subAction: 'remove', id:
+        'nstop'
+    }, { action: 'goto', target: '-03bryci' } ]; handleActions(actionList);
+}
