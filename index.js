@@ -19,7 +19,7 @@
  * to sound cues.
  * 
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 1.17.1
+ * @version 2.0.0
  * @license AGPL-3.0-or-later
  */
 
