@@ -2138,6 +2138,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     const systemNote = {
         name: "Hardware State",
         is_system: true,
+        is_user: false,
         send_date: Date.now(),
         content: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
             telemetryString + `]\n\n` +
