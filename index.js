@@ -1,25 +1,25 @@
 
 /**
  * ESTIM Local Extension for SillyTavern
- * 
+ *
  * ** THIS IS STILL WORK IN PROGRESS, EXPECT BUGS AND INCOMPLETE FEATURES **
- * 
- * This extension allows the AI to trigger electrostimulation (e-stim) signals on the 
+ *
+ * This extension allows the AI to trigger electrostimulation (e-stim) signals on the
  * user's hardware in sync with the narrative. The AI can call the "estim_mirror" function
- * tool with specific parameters to indicate when and how to stimulate the user based on 
- * the story context. The extension also provides a slash command for manual triggering 
+ * tool with specific parameters to indicate when and how to stimulate the user based on
+ * the story context. The extension also provides a slash command for manual triggering
  * and a button to stop all signals.
- * The available estim patterns and their corresponding audio files are defined in the 
+ * The available estim patterns and their corresponding audio files are defined in the
  * "estims.json" configuration file. The extension ensures that only one signal plays at
  * a time, and it schedules the playback to occur right after the next message is fully
  * rendered, allowing for better synchronization with the story.
- * Note: This extension is designed for local use and does not require any external API 
- * or hardware integration. It simply plays audio files that represent different estim 
- * patterns, which can be used in conjunction with physical e-stim devices that respond 
+ * Note: This extension is designed for local use and does not require any external API
+ * or hardware integration. It simply plays audio files that represent different estim
+ * patterns, which can be used in conjunction with physical e-stim devices that respond
  * to sound cues.
- * 
+ *
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 2.0.0
+ * @version 2.0.1
  * @license AGPL-3.0-or-later
  */
 
@@ -101,8 +101,8 @@ let audioState = {
 
 /**
  * Stores the state of the currently active profiles, their descriptions for
- * the AI tools, and the list of available pattern names. This is updated 
- * whenever a profile is activated or deactivated, and is used to generate 
+ * the AI tools, and the list of available pattern names. This is updated
+ * whenever a profile is activated or deactivated, and is used to generate
  * the context for the AI tools so they know which patterns are available
  * and how to describe them.
  */
@@ -117,9 +117,9 @@ let profilesState = {
 
 /**
  * Scheduled stimulation parameters that will be applied when
- * the next generation finishes. This allows the AI to set 
- * the desired stimulation parameters during generation, and 
- * then have them executed at the right moment after the 
+ * the next generation finishes. This allows the AI to set
+ * the desired stimulation parameters during generation, and
+ * then have them executed at the right moment after the
  * message is rendered. While playing the sensation this object
  * will track the operational audio parameters.
  */
@@ -130,16 +130,16 @@ let scheduledNextAction = {
     durationRaw: '0', // The raw duration value as set by the AI, which can be a number in seconds or a percentage string (e.g. "100%")
     finalDurationSeconds: 0, // The final duration in seconds that is calculated based on the raw duration and the audio file length. This is the value that is actually used to schedule the stop command.
     targetChannel: 'both',
-    remoteControlConfig: null // The restricted remote control configuration as specified by the AI in the "restricted_remote_control" parameter. 
+    remoteControlConfig: null // The restricted remote control configuration as specified by the AI in the "restricted_remote_control" parameter.
 };
 
 /**
  * The restricted remote is a UX element that allows the user to
  * interact with the played sensations in real-time and in a way
- * the llm allows it (e.g. stop the sensation, adjust intensity, 
- * or change the calibration). That's why it is called "restricted remote", 
- * because the user can only do what the AI allows them to do, 
- * which adds an interesting dynamic to the interaction. The 
+ * the llm allows it (e.g. stop the sensation, adjust intensity,
+ * or change the calibration). That's why it is called "restricted remote",
+ * because the user can only do what the AI allows them to do,
+ * which adds an interesting dynamic to the interaction. The
  * state of the remote is stored in this object.
  */
 let restrRemoteState = {
@@ -156,15 +156,15 @@ let restrRemoteState = {
 // Define default settings
 const defaultSettings = Object.freeze({
     lastActiveProfiles: [], // Remembers the last selected profiles
-    channel1: DEFAULT_CHANNEL_1_NAME, // Name of channel 1 for AI tool context 
-    channel2: DEFAULT_CHANNEL_2_NAME,  // Name of channel 2 for AI tool context 
+    channel1: DEFAULT_CHANNEL_1_NAME, // Name of channel 1 for AI tool context
+    channel2: DEFAULT_CHANNEL_2_NAME,  // Name of channel 2 for AI tool context
     durationStretchFactor: 1.5,        // Pacing factor for smart durations
-    customCalibrations: {},            // Personal calibrations for each 
+    customCalibrations: {},            // Personal calibrations for each
     minCalibration: null,              // Minimum calibration value for the audio volume
     maxPleasureCalibration: null,      // Maximum calibration value for pleasure sensations
     maxPainCalibration: null,          // Maximum calibration value for pain sensations
-    blindfoldModes: false,             // Whether to hide the toast notifications when a sensation is played. 
-    simulationOnly: false              // Whether to only simulate the sensations without actually outputting them. 
+    blindfoldModes: false,             // Whether to hide the toast notifications when a sensation is played.
+    simulationOnly: false              // Whether to only simulate the sensations without actually outputting them.
 });
 
 
@@ -189,8 +189,8 @@ function getSettings() {
 
 
 /**
- * Saves the current settings and refreshes the AI tools to reflect any changes. 
- * This should be called whenever a setting is changed that affects the behavior 
+ * Saves the current settings and refreshes the AI tools to reflect any changes.
+ * This should be called whenever a setting is changed that affects the behavior
  * of the AI tools, such as switching profiles or changing channel names.
  */
 async function updateSettings() {
@@ -224,12 +224,12 @@ async function updateSettings() {
 
 
 /**
- * Helper function to load profile JSON files from a specified directory 
+ * Helper function to load profile JSON files from a specified directory
  * and store them in the global state.
- * 
- * @param {*} folderPath 
- * @param {*} configFile 
- * @returns 
+ *
+ * @param {*} folderPath
+ * @param {*} configFile
+ * @returns
  */
 async function loadProfileDirectory(folderPath, configFile) {
     const baseUrl = new URL(folderPath, import.meta.url).href;
@@ -288,11 +288,11 @@ async function loadProfileDirectory(folderPath, configFile) {
  */
 async function loadProfiles() {
 
-    // Clear the set and initialize the system profile with the "stop" sensation, which is 
-    // always available and does not need to be defined in the config file. This ensures 
-    // that there is always a known pattern to stop the stimulation, even if the user 
-    // has not defined any profiles or sensations yet. The system profile is a 
-    // reserved profile that cannot be deactivated and serves as a fallback for the 
+    // Clear the set and initialize the system profile with the "stop" sensation, which is
+    // always available and does not need to be defined in the config file. This ensures
+    // that there is always a known pattern to stop the stimulation, even if the user
+    // has not defined any profiles or sensations yet. The system profile is a
+    // reserved profile that cannot be deactivated and serves as a fallback for the
     // stop command.
     profilesState.profiles = {
         "system": {
@@ -341,13 +341,13 @@ async function activateProfile(profileId, quiet = false) {
     let totalMemoryBytes = 0;
 
     // Now read all sensations in the profile from the files and make
-    // them available for the AI tools. This is necessary because the profile might 
-    // have been just loaded and the sensations are not yet processed, or 
-    // because the user activated a profile that was previously deactivated 
+    // them available for the AI tools. This is necessary because the profile might
+    // have been just loaded and the sensations are not yet processed, or
+    // because the user activated a profile that was previously deactivated
     // and we need to make sure all its sensations are ready to be used.
     for (const sensation of profile.sensations || []) {
 
-        // Check if the sensation already has an audioBuffer, which means it is already loaded 
+        // Check if the sensation already has an audioBuffer, which means it is already loaded
         // and ready to use.
         if (sensation.audioBuffer) {
             continue;
@@ -410,7 +410,7 @@ async function activateProfile(profileId, quiet = false) {
     // Mark this profile as active
     profile.isActive = true;
 
-    // Persist it in the settings so that it can be remembered for the next session. 
+    // Persist it in the settings so that it can be remembered for the next session.
     const settings = getSettings();
     if (!settings.lastActiveProfiles.includes(profileId) && !profile.isSystem) {
         settings.lastActiveProfiles.push(profileId);
@@ -461,7 +461,7 @@ async function deactivateProfile(profileId, quiet = false) {
  */
 async function refreshActiveProfiles() {
 
-    // Get current channel names with fallback to defaults if not set. These will be used to 
+    // Get current channel names with fallback to defaults if not set. These will be used to
     // replace the placeholders in the profile descriptions.
     const settings = getSettings();
     const ch1_text = settings.channel1 || DEFAULT_CHANNEL_1_NAME;
@@ -487,7 +487,7 @@ async function refreshActiveProfiles() {
             .replace(/\{\{estim_ch1\}\}/gi, ch1_text)
             .replace(/\{\{estim_ch2\}\}/gi, ch2_text);
 
-        // Add the profile description to the list of available patterns for the AI tool. 
+        // Add the profile description to the list of available patterns for the AI tool.
         profilesState.profileDescriptions += `  - "${profile.name}": ${parsedProfileDesc}\n`;
 
         // Iterate over all sensations in the profile and create the description string for each sensation.
@@ -509,8 +509,8 @@ async function refreshActiveProfiles() {
                 }
             }
 
-            // Add pain specifier at the beginning if it is a pain sensation. This helps the AI 
-            // to differentiate between pleasure and pain sensations, especially when they can 
+            // Add pain specifier at the beginning if it is a pain sensation. This helps the AI
+            // to differentiate between pleasure and pain sensations, especially when they can
             // be made painful by increasing the intensity.
             if (sensation?.isPain) {
                 parsedSensationDesc = `Pain signal. ${parsedSensationDesc}`;
@@ -540,9 +540,9 @@ async function refreshActiveProfiles() {
 
 
 /**
- * Plays the audio signal corresponding to the given estim pattern, intensity and duration. This is called after 
+ * Plays the audio signal corresponding to the given estim pattern, intensity and duration. This is called after
  * the next message is fully rendered, allowing the user to receive the stimulation at the right moment in the narrative.
- * 
+ *
  * @param {string} pattern The name of the estim pattern to use in the format "profileId/patternName" (e.g. "karla/tickle", "karla/push", "karla/cramp", "karla/shock")
  * @param {string|number} intensity The intensity of the signal, from "1" to "100" for pleasurable intensities and "101" to "200" for pain intensities. Default is "10". "0" stops the signal immediately.
  * @param {string|number} duration The duration of the signal in seconds. Default is "0" which plays the file once. -1 means looping
@@ -566,8 +566,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         return true;
     }
 
-    // 'pattern' must be in the format "profileId/patternName", so we split it to get the 
-    // profile and pattern name. This allows us to have multiple profiles with patterns 
+    // 'pattern' must be in the format "profileId/patternName", so we split it to get the
+    // profile and pattern name. This allows us to have multiple profiles with patterns
     // of the same name without conflicts.
     const [profileId, patternName] = pattern.split('/');
 
@@ -577,7 +577,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         return true;
     }
 
-    // Retrieve profile 
+    // Retrieve profile
     const profile = profilesState.profiles[profileId];
     if (!profile) {
         console.error(`ESTIM: Profile "${profileId}" not found for pattern "${pattern}".`);
@@ -597,7 +597,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         return false;
     }
 
-    // Ensure the AudioContext is resumed in response to a user gesture, if it is currently suspended. 
+    // Ensure the AudioContext is resumed in response to a user gesture, if it is currently suspended.
     // This is necessary because many browsers require a user interaction before allowing audio playback.
     await ensureAudioContext();
     if (!audioState.audioContext) {
@@ -624,7 +624,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         const maxPleasure = Math.max(0, Math.min(maxPleasureCalibration, maxPain - 0.01));
         const minVol = Math.max(0, Math.min(minCalibration, maxPleasure - 0.01));
 
-        // Calculate target volume 
+        // Calculate target volume
         intensity = Math.max(0, Math.min(200, parseInt(intensity) || 10));
         if (intensity > 0) {
             if (intensity <= 100) {
@@ -634,13 +634,13 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
             }
         }
 
-        // Determine individual calibration for this pattern. This allows users 
-        // to fine-tune the intensity of each pattern to their liking, which is 
-        // especially important for pain sensations where a small increase in 
-        // intensity can make a big difference in the perceived sensation. 
-        // The calibration is applied as a multiplier to the target volume, 
-        // so a calibration of 1.0 means no change, while a calibration of 
-        // 0.5 would reduce the intensity by half and a calibration of 2.0 
+        // Determine individual calibration for this pattern. This allows users
+        // to fine-tune the intensity of each pattern to their liking, which is
+        // especially important for pain sensations where a small increase in
+        // intensity can make a big difference in the perceived sensation.
+        // The calibration is applied as a multiplier to the target volume,
+        // so a calibration of 1.0 means no change, while a calibration of
+        // 0.5 would reduce the intensity by half and a calibration of 2.0
         // would double it.
         // 1st priority: The temporary slider value from the "Test" button
         // 2nd priority: Your permanently saved value from the settings
@@ -682,9 +682,9 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     audioState.audioGain = audioState.audioContext.createGain();
     audioState.audioGain.gain.setValueAtTime(0.001, now);  // start almost silent
 
-    // Channel selection with stereo panning. This allows the AI to choose 
+    // Channel selection with stereo panning. This allows the AI to choose
     // to stimulate only one channel (e.g. only genitals or only buttocks)
-    // or both channels at the same time, which adds more variety and control 
+    // or both channels at the same time, which adds more variety and control
     // over the sensations.
     const panner = audioState.audioContext.createStereoPanner();
     if (targetChannel === 'ch1') {
@@ -700,11 +700,11 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     panner.connect(audioState.audioGain);
 
     if (!settings.simulationOnly) {
-        // Normal mode: Connect to the destination so the audio is actually played. 
+        // Normal mode: Connect to the destination so the audio is actually played.
         // This is the default behavior when the AI triggers a sensation.
         audioState.audioGain.connect(audioState.audioContext.destination);
     } else {
-        // Simulation only mode: Don't connect to the destination, which effectively mutes 
+        // Simulation only mode: Don't connect to the destination, which effectively mutes
         // the audio output. This is useful for testing and debugging without actually playing the sound.
         if (DEBUG_MODE) console.log(`ESTIM: 🔇 Simulation Only active. Audio hardware disconnected.`);
     }
@@ -712,7 +712,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     // Set audio cancel timer if a specific duration was set
     if (duration > 0) {
         // Set looping to repeat the audio in case the duration
-        // is set longer than the duration of the file. 
+        // is set longer than the duration of the file.
         audioState.audioSource.loop = true;
         audioState.looping = false;
 
@@ -726,7 +726,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         // A negative value indicates that the playback shall continue
         // until a new command is issued. Only do this if it is allowed
         if (sensation.canLoop) {
-            // Set looping 
+            // Set looping
             audioState.audioSource.loop = true;
             audioState.looping = true;
         }
@@ -799,10 +799,10 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
 
 
 /**
- * Stops all currently active estim signals with a quick fade-out to avoid audio artifacts. 
- * This is called before starting a new signal to ensure that only one signal plays at a 
+ * Stops all currently active estim signals with a quick fade-out to avoid audio artifacts.
+ * This is called before starting a new signal to ensure that only one signal plays at a
  * time, and also when the user clicks the "Stop" button.
- * 
+ *
  * @param {number} fadeOutMs The duration of the fade-out in milliseconds. Default is 15ms for a quick but smooth fade-out.
  * @param {boolean} quiet Suppress chat output
  */
@@ -833,8 +833,8 @@ function stopAllEstimSignals(stealth = false, fadeOutMs = 15, quiet = false) {
     audioState.playing = false;
 
     // If stealth is true, we do not update the pattern, intensity and duration in the state,
-    // which allows us to keep the old values for the next playback. This is useful when we 
-    // want to quickly stop the audio before starting a new one, without losing the information 
+    // which allows us to keep the old values for the next playback. This is useful when we
+    // want to quickly stop the audio before starting a new one, without losing the information
     // what we played before.
     if (!stealth) {
         audioState.startTime = now;
@@ -869,8 +869,8 @@ async function initAudioContext() {
 
 
 /**
- * Ensures the AudioContext is resumed in response to a user gesture, 
- * if it is currently suspended. This is necessary because many browsers 
+ * Ensures the AudioContext is resumed in response to a user gesture,
+ * if it is currently suspended. This is necessary because many browsers
  * require a user interaction before allowing audio playback.
  */
 async function ensureAudioContext() {
@@ -957,11 +957,11 @@ function getAudioStateString() {
 
 
 /**
- * Shows the remote control with the given parameters. This is called 
- * when the AI tool "remote_control" is triggered during the narration, 
- * allowing the AI to give the user temporary control over certain 
- * aspects of the stimulation (e.g. intensity, pattern selection, etc.) 
- * through an interactive widget on the screen. The parameters define 
+ * Shows the remote control with the given parameters. This is called
+ * when the AI tool "remote_control" is triggered during the narration,
+ * allowing the AI to give the user temporary control over certain
+ * aspects of the stimulation (e.g. intensity, pattern selection, etc.)
+ * through an interactive widget on the screen. The parameters define
  * which controls to show and how they should behave.
  * @param {string} pattern The calling pattern that triggered the remote control.
  * @param {*} remoteControlConfig The parameters for the remote control widget.
@@ -975,12 +975,12 @@ function showRemoteControlWidget(pattern, remoteControlConfig = null) {
     restrRemoteState.calibrationPattern = pattern;
     restrRemoteState.remoteControlConfig = remoteControlConfig;
 
-    // Do the UI configuration based on the parameters sent by the AI. 
+    // Do the UI configuration based on the parameters sent by the AI.
     // This allows the AI to customize the remote control for each situation.
     if (!configureRemoteControlWidget()) {
         // Nothing to show, so we do not open the remote control at all.
         // This allows the AI to simply call "showRemoteControlWidget" with
-        // parameters that lead to no enabled modules to hide the remote control, 
+        // parameters that lead to no enabled modules to hide the remote control,
         // without having to call the separate "hideRemoteControlWidget" function.
         return false;
     }
@@ -1002,27 +1002,27 @@ function showRemoteControlWidget(pattern, remoteControlConfig = null) {
 
 
 /**
- * Configures the remote control UI elements according to the saved configuration 
- * with the given parameters. This is called by the "showRemoteControlWidget" 
+ * Configures the remote control UI elements according to the saved configuration
+ * with the given parameters. This is called by the "showRemoteControlWidget"
  * function to set up the remote control based on the AI's instructions.
  */
 function configureRemoteControlWidget() {
 
-    // Hide everything first and then show only the enabled modules. 
-    // This ensures a clean state and avoids any conflicts between modules, 
+    // Hide everything first and then show only the enabled modules.
+    // This ensures a clean state and avoids any conflicts between modules,
     // especially when the remote control is triggered multiple times with different configurations.
     $('#estim_remote_calibration').addClass('estim-hidden');
     $('#estim_remote_trick_module').addClass('estim-hidden');
     $('#estim_remote_stop_module').addClass('estim-hidden');
 
-    // Check if there is at least one module enabled. If not, we do not show the 
+    // Check if there is at least one module enabled. If not, we do not show the
     // remote control at all, because it would be useless and confusing to the user.
     const isAnyModuleEnabled =
         restrRemoteState.remoteControlConfig?.calibration_module?.enabled ||
         restrRemoteState.remoteControlConfig?.stop_module?.enabled ||
         restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled;
 
-    // Handle special case of hiding in the show function to avoid having 
+    // Handle special case of hiding in the show function to avoid having
     // to implement the hiding logic in the AI tool separately. This allows
     // the AI to simply call "showRemoteControlWidget" with all modules disabled
     // to hide the remote control, which is more intuitive and keeps
@@ -1049,7 +1049,7 @@ function configureRemoteControlWidget() {
         $('#estim_calib_pleasure_slider').val(maxPleasureCalibration);
         $('#estim_calib_pain_slider').val(maxPainCalibration);
 
-        // increase_only logic 
+        // increase_only logic
         if (isTrueBoolean(String(restrRemoteState.remoteControlConfig.calibration_module?.increase_only))) {
             $('#estim_remote_calibration').addClass('estim-increase-only');
 
@@ -1117,7 +1117,7 @@ function hideRemoteControlWidget() {
 
 
 /**
- * Register function tools for this extension. This allows the AI to call these 
+ * Register function tools for this extension. This allows the AI to call these
  * functions during narration.
  * @returns {Promise<void>}
  */
@@ -1140,7 +1140,7 @@ async function registerAiFunctionTools() {
             return;
         }
 
-        // Get current channel names with fallback to defaults if not set. These will be used to 
+        // Get current channel names with fallback to defaults if not set. These will be used to
         // replace the placeholders in the profile descriptions.
         const settings = getSettings();
         const ch1_text = settings.channel1 || DEFAULT_CHANNEL_1_NAME;
@@ -1276,7 +1276,7 @@ async function registerAiFunctionTools() {
             //    'restricted remote control panel that allows the user to partially control the ' +
             //    'sensation. Physical sensations are grouped into profiles. Sensations in the ' +
             //    'same profile should be used together to create a more complex sensation experience. ' +
-            //    'The following profiles are currently active:\n' + profilesState.profileDescriptions,            
+            //    'The following profiles are currently active:\n' + profilesState.profileDescriptions,
             description: 'CRITICAL NARRATIVE TOOL: This bridges the gap between your text and the ' +
                 'user\'s physical reality. Whenever your character physically touches, teases, shocks, ' +
                 'or stimulates the user in the story, you MUST call this tool to make them actually feel ' +
@@ -1288,8 +1288,8 @@ async function registerAiFunctionTools() {
             stealth: true,
             action: async (args) => {
 
-                // Recognize special "stop" command: If intensity is 0 or pattern name is "stop", 
-                // we interpret this as a command to stop the signal immediately without starting a new one. 
+                // Recognize special "stop" command: If intensity is 0 or pattern name is "stop",
+                // we interpret this as a command to stop the signal immediately without starting a new one.
                 if (args.intensity === 0 || args.pattern.toLowerCase() === 'stop') {
                     stopAllEstimSignals();
                     return 'Stopped all e-stim signals.';
@@ -1311,7 +1311,7 @@ async function registerAiFunctionTools() {
                 console.log('ESTIM: DEBUG Restricted remote control parameters received:', args.restricted_remote_control);
 
                 // Check if the estim shall be applied to the current user (the one that is {{user}}).
-                // Refuse to play if the "who" parameter specifies a different character. 
+                // Refuse to play if the "who" parameter specifies a different character.
                 // This is important to avoid sending unintended signals to the user.
                 const user = SillyTavern.getContext().name1; // Get the current user's name from the context
                 if (args.who.toLowerCase() !== user.toLowerCase()) {
@@ -1369,8 +1369,8 @@ async function registerAiFunctionTools() {
                     }
 
                     // Calculate the final duration in seconds based on the raw input.
-                    // This allows us to support both fixed durations (e.g. "5", "2.5") and 
-                    // percentage-based durations (e.g. "100%", "50%") that adapt to the 
+                    // This allows us to support both fixed durations (e.g. "5", "2.5") and
+                    // percentage-based durations (e.g. "100%", "50%") that adapt to the
                     // narrative length.
                     let finalDurationSeconds = 0;
                     const rawDur = String(scheduledNextAction.durationRaw || "100%").trim();
@@ -1378,14 +1378,14 @@ async function registerAiFunctionTools() {
                         finalDurationSeconds = -1; // Loop indefinitely until stopped by another command
                     }
                     else if (rawDur === '0') {
-                        finalDurationSeconds = 0; // Play the pattern for its native length 
+                        finalDurationSeconds = 0; // Play the pattern for its native length
                     }
                     else if (rawDur.endsWith('%')) {
                         // Get last message from chat
                         const chat = SillyTavern.getContext().chat;
                         const lastMessage = chat.length > 0 ? chat[chat.length - 1].mes : "";
 
-                        // Count words in the last message to estimate reading time. 
+                        // Count words in the last message to estimate reading time.
                         // We split by whitespace and filter out empty strings.
                         const wordCount = lastMessage.split(/\s+/).filter(word => word.length > 0).length;
 
@@ -1445,7 +1445,7 @@ async function registerAiFunctionTools() {
 
 
 /**
- * Register slash commands for this extension. This allows the user to manually 
+ * Register slash commands for this extension. This allows the user to manually
  * trigger actions from the chat input.
  */
 async function registerCommand() {
@@ -1636,7 +1636,7 @@ async function registerCommand() {
 
 
 /**
- * Register UI elements for this extension. This adds buttons, settings panels, 
+ * Register UI elements for this extension. This adds buttons, settings panels,
  * or other interactive elements to the SillyTavern interface.
  */
 async function registerUiElements() {
@@ -1670,10 +1670,10 @@ async function registerUiSettings() {
 async function registerUiRemote() {
     const remoteHtml = await renderExtensionTemplateAsync(TEMPLATE_PATH, 'remote');
 
-    // We attach it at the very top of the character info block in the right 
-    // sidebar, so it is always visible and easily accessible for the user. 
-    // This allows users to quickly trigger sensations or stop them without 
-    // having to scroll or search for the controls, which is especially 
+    // We attach it at the very top of the character info block in the right
+    // sidebar, so it is always visible and easily accessible for the user.
+    // This allows users to quickly trigger sensations or stop them without
+    // having to scroll or search for the controls, which is especially
     // important during intense story moments when quick reactions are needed.
     const $rightMenuInfoBlock = $('#rm_info_block');
     if ($rightMenuInfoBlock.length) {
@@ -1702,7 +1702,7 @@ async function registerUiRemote() {
     $('#estim_remote_trick_btn').on('click', async () => {
         if (!restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) return;
 
-        // Hide the Trick-or-Treat button immediately after it's pressed to prevent 
+        // Hide the Trick-or-Treat button immediately after it's pressed to prevent
         // multiple clicks and to increase the psychological impact of the "one chance" choice.
         restrRemoteState.remoteControlConfig.trick_or_treat_module.enabled = false;
 
@@ -1737,15 +1737,15 @@ async function registerUiRemote() {
             $('.estim-calib-play-btn').removeClass('estim-playing').text('▶');
 
             if (!isPlaying && restrRemoteState.calibrationPattern) {
-                // Let the button visually "lock" in place to indicate that the signal 
-                // is playing. This gives the user feedback on the current state and 
+                // Let the button visually "lock" in place to indicate that the signal
+                // is playing. This gives the user feedback on the current state and
                 // allows them to stop the signal by clicking the button again.
                 $(this).addClass('estim-playing').text('⏹');
 
                 // We read the set intensity (0.0 - 1.0) from the slider
                 const sliderIntensity = parseFloat($(sliderId).val());
 
-                // We play the signal on a loop (-1). Intensity is 'don't care' here, because 
+                // We play the signal on a loop (-1). Intensity is 'don't care' here, because
                 // the calibration pattern will ignore it and use the slider value instead. Only
                 // requirement is to set it to a value >0 to avoid interpreting the call as a STOP
                 await playEstimSignal(restrRemoteState.calibrationPattern, 10, -1, 'both', true, null, null, sliderIntensity);
@@ -1800,9 +1800,9 @@ async function registerUiRemote() {
 
 
 /**
- * Registers UI elements for managing the active profiles. 
- * This allows users to easily switch between different sets 
- * of sensations based on the current story context or 
+ * Registers UI elements for managing the active profiles.
+ * This allows users to easily switch between different sets
+ * of sensations based on the current story context or
  * their personal preferences.
  */
 async function registerUiProfiles() {
@@ -1848,8 +1848,8 @@ async function registerUiProfiles() {
 
 
 /**
- * Registers UI input fields for customizing the 
- * channel names. This allows users to personalize 
+ * Registers UI input fields for customizing the
+ * channel names. This allows users to personalize
  * the names of the stimulated body parts in the
  * profile descriptions and macros.
  */
@@ -1869,10 +1869,10 @@ async function registerUiChannelNames() {
 
 
 /**
- * Registers a checkbox in the UI to allow users to hide or show 
- * the toast notifications when a sensation is played. This gives users 
- * the option to reduce on-screen distractions and maintain immersion, 
- * especially during intense story moments when they may want to focus 
+ * Registers a checkbox in the UI to allow users to hide or show
+ * the toast notifications when a sensation is played. This gives users
+ * the option to reduce on-screen distractions and maintain immersion,
+ * especially during intense story moments when they may want to focus
  * solely on the narrative and their physical sensations.
  */
 async function registerUiBlindfoldMode() {
@@ -1891,12 +1891,12 @@ async function registerUiBlindfoldMode() {
 
 
 /**
- * Registers a checkbox in the UI to allow users to enable or 
- * disable "Simulation Only" mode. When enabled, this mode prevents 
+ * Registers a checkbox in the UI to allow users to enable or
+ * disable "Simulation Only" mode. When enabled, this mode prevents
  * any actual sensations from being sent to the user's device, allowing
  * for safe testing or demonstration of the system without physical
- * stimulation. This is particularly useful for developers, testers, 
- * or users who want to preview the functionality without engaging 
+ * stimulation. This is particularly useful for developers, testers,
+ * or users who want to preview the functionality without engaging
  * in real sensations.
  */
 async function registerUiSimulationOnly() {
@@ -1921,7 +1921,7 @@ async function registerUiSimulationOnly() {
 
 
 /**
-* Registers a "Stretch Factor" input in the UI to allow 
+* Registers a "Stretch Factor" input in the UI to allow
 * users to adjust the duration stretch factor for sensations.
 */
 async function registerUiStretchFactor() {
@@ -1936,7 +1936,7 @@ async function registerUiStretchFactor() {
 
 
 /**
- * Registers a "Stop" button in the UI to allow 
+ * Registers a "Stop" button in the UI to allow
  * users to immediately stop all active sensations.
  */
 async function registerUiStopButton() {
@@ -1991,7 +1991,7 @@ function updateCalibrationDropdownUI() {
 }
 
 /**
- * Builds and registers the UI for calibrating the intensity of 
+ * Builds and registers the UI for calibrating the intensity of
  * the sensations. This allows users to adjust the strength of each pattern.
  */
 async function registerUiCalibrationStudio() {
@@ -2056,7 +2056,7 @@ async function registerUiCalibrationStudio() {
 
 
 /**
- * Registers custom macros for this extension. This allows users 
+ * Registers custom macros for this extension. This allows users
  * to use placeholders in their profile descriptions
  */
 async function registerUiMacros() {
@@ -2106,13 +2106,13 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     // Fetch the normal hardware status string
     let telemetryString = getAudioStateString();
 
-    // Check if the user ignored a pending trick challenge and add telemetry if so. 
-    // This allows the LLM to react to the user's choice of ignoring the challenge, 
-    // which can be just as narratively interesting as accepting it. By 
-    // acknowledging the user's decision to avoid the secret button, 
-    // the LLM can adapt the story accordingly, perhaps by describing the character's 
-    // cautious behavior or missed opportunities for unexpected sensations. 
-    // This adds depth and responsiveness to the narrative, making the user's 
+    // Check if the user ignored a pending trick challenge and add telemetry if so.
+    // This allows the LLM to react to the user's choice of ignoring the challenge,
+    // which can be just as narratively interesting as accepting it. By
+    // acknowledging the user's decision to avoid the secret button,
+    // the LLM can adapt the story accordingly, perhaps by describing the character's
+    // cautious behavior or missed opportunities for unexpected sensations.
+    // This adds depth and responsiveness to the narrative, making the user's
     // choices feel meaningful even when they opt for safety.
     if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
         restrRemoteState.telemetryQueue.push(
@@ -2124,7 +2124,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
         configureRemoteControlWidget();
     }
 
-    // Show current remote control config in the telemetry if it is open. 
+    // Show current remote control config in the telemetry if it is open.
     if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
         telemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
     }
@@ -2136,8 +2136,9 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     }
 
     const systemNote = {
-        is_user: false,
         name: "Hardware State",
+        is_user: false,
+        is_system: true,
         send_date: Date.now(),
         mes: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
             telemetryString + `]\n\n` +
@@ -2152,8 +2153,8 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
 
 
 /**
- * This function is called by SillyTavern when the extension is activated. 
- * It registers all the necessary components of the extension, such as function tools, 
+ * This function is called by SillyTavern when the extension is activated.
+ * It registers all the necessary components of the extension, such as function tools,
  * slash commands, and UI elements.
  */
 export async function onActivate() {
@@ -2163,8 +2164,8 @@ export async function onActivate() {
     await registerUiElements();
     await registerCommand();
 
-    // Async! Activate all system profiles, as they are not defined in the settings 
-    // but should always be active. We load the background profiles first to ensure 
+    // Async! Activate all system profiles, as they are not defined in the settings
+    // but should always be active. We load the background profiles first to ensure
     // they are active before any user interaction
     onActivateBackgroundLoad();
 }
