@@ -2136,16 +2136,15 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     }
 
     const systemNote = {
-        //name: "Hardware State",
-        //is_user: false,
-        //is_system: true,
-        //send_date: Date.now(),
+        name: "Hardware State",
+        is_user: false,
+        send_date: Date.now(),
         content: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
             telemetryString + `]\n\n` +
             `SYSTEM INSTRUCTION: Acknowledge this physical reality in your narrative. If your last action ` +
             `has finished naturally, narrate the aftermath. If a sensation is currently running, actively ` +
             `decide whether to maintain, change, or stop it using the 'inflict_physical_sensation' tool.]`,
-        role: "system"
+        role: "system",
     };
 
     // Insert before the last message
