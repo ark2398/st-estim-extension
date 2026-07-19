@@ -2147,7 +2147,8 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     };
 
     // Insert before the last message
-    chat.splice(chat.length - 1, 0, systemNote);
+    // XXX JUST FOR NOW!
+    //chat.splice(chat.length - 1, 0, systemNote);
 };
 
 
