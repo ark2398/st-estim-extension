@@ -54,6 +54,9 @@ const ESTIM_MAX_PAIN_AUDIOVOLUME = 1.0;
 // Global State
 let generationEndedHandler = null;
 
+// Global telemetry state string for the AI to read and understand the current status of the stimulation hardware. This is updated whenever a new signal is played or stopped, and it is used by the AI to make decisions about what sensations to trigger next.
+let globalTelemetryString = null;
+
 /**
  * Stores all state parameters of the currently playing audio
  */
@@ -1352,6 +1355,11 @@ async function registerAiFunctionTools() {
         // (including thinking mode / multi-message responses). This guarantees the
         // estim signal only plays after ALL messages are visible on screen.
         generationEndedHandler = () => {
+
+            // Reset the global telemetry string to avoid sending stale data from previous actions.
+            globalTelemetryString = null;
+
+            // Continue after a short delay to ensure the UI is fully updated and the user has seen the last message.
             setTimeout(async () => {
                 try {
                     // Check if estimPattern is set, otherwise we are already finished
@@ -2083,7 +2091,48 @@ async function registerUiMacros() {
     macros.register('estim_state', {
         description: 'Returns the E-stim state at start of a turn. Inject into prompt.',
         handler: () => {
-            return getAudioStateString();
+            // Check if we need to refresh the telemetry string. This is important because
+            // the LLM may have already received a telemetry update in the previous turn,
+            //  and we don't want to flood it with redundant information.
+            // The globalTelemetryString will be set to null once the LLM has finished
+            // processing the last telemetry update, allowing us to send a new one.
+            if (globalTelemetryString == null) {
+
+                // Fetch the normal hardware status string
+                globalTelemetryString = getAudioStateString();
+
+                // Check if the user ignored a pending trick challenge and add telemetry if so.
+                // This allows the LLM to react to the user's choice of ignoring the challenge,
+                // which can be just as narratively interesting as accepting it. By
+                // acknowledging the user's decision to avoid the secret button,
+                // the LLM can adapt the story accordingly, perhaps by describing the character's
+                // cautious behavior or missed opportunities for unexpected sensations.
+                // This adds depth and responsiveness to the narrative, making the user's
+                // choices feel meaningful even when they opt for safety.
+                if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
+                    restrRemoteState.telemetryQueue.push(
+                        `The user was too scared to press your secret button and completely ignored your challenge! React to their cowardice.`
+                    );
+
+                    // Hide the Trick-or-Treat button and clean UI
+                    remoteControlConfig.trick_or_treat_module.enabled = false;
+                    configureRemoteControlWidget();
+                }
+
+                // Show current remote control config in the telemetry if it is open.
+                if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
+                    globalTelemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
+                }
+
+                // Add remote control events, if any
+                if (restrRemoteState.telemetryQueue.length > 0) {
+                    globalTelemetryString += ` | RESTRICTED REMOTE CONTROL EVENTS: ` + restrRemoteState.telemetryQueue.join(' ');
+                    restrRemoteState.telemetryQueue = []; // Clear the queue after reading
+                }
+            }
+
+            // Return the telemetry string to the LLM. It will be cleared after the LLM has processed it.
+            return globalTelemetryString;
         }
     });
 
@@ -2096,7 +2145,7 @@ async function registerUiMacros() {
 
 globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, type) {
     console.log('ESTIM: Prompt interceptor called. Current chat:', chat, contextSize, type);
-
+/*
     // No background tasks
     if (type === 'quiet') {
         return; // Early Return für Hintergrund-Generierungen
@@ -2148,6 +2197,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
 
     // Insert before the last message
     chat.splice(chat.length - 1, 0, systemNote);
+    */
 };
 
 
