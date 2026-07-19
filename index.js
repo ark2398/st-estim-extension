@@ -19,7 +19,6 @@
  * to sound cues.
  *
  * @author ark2398 ( https://github.com/ark2398 )
- * @version 2.0.3
  * @license AGPL-3.0-or-later
  */
 
@@ -2138,8 +2137,9 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     const systemNote = {
         name: "Hardware State",
         is_user: false,
+        is_system: true,
         send_date: Date.now(),
-        content: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
+        mes: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
             telemetryString + `]\n\n` +
             `SYSTEM INSTRUCTION: Acknowledge this physical reality in your narrative. If your last action ` +
             `has finished naturally, narrate the aftermath. If a sensation is currently running, actively ` +
@@ -2147,8 +2147,7 @@ globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, ty
     };
 
     // Insert before the last message
-    // XXX JUST FOR NOW!
-    //chat.splice(chat.length - 1, 0, systemNote);
+    chat.splice(chat.length - 1, 0, systemNote);
 };
 
 
