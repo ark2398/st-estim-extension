@@ -1178,7 +1178,8 @@ async function registerAiFunctionTools() {
                         '2. SAFETY: To access painful intensities > 100, "is_pain_intensity" MUST ' +
                         'be true. Otherwise, the signal is clamped at 100. ' +
                         '3. NARRATIVE SYNC: A gentle tease should be 10-30. A strong, edge-pushing ' +
-                        'vibration 70-100. A cruel shock 150+.'
+                        'vibration 50-80. 80 should be maximum for normal sensations. To enforce climaxes, ' +
+                        'use intensities around 100. A cruel shock is 150+.'
                 },
                 is_pain_intensity: {
                     type: 'boolean',
