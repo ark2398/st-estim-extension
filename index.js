@@ -782,8 +782,8 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         let toastrDuration = duration > 0 ? duration * 1000 : 8000; // Show the toast for the duration of the sensation, or 8 seconds for indefinite sensations
         toastrDuration = Math.min(toastrDuration, 15000); // Cap the toast duration at 15 seconds to avoid excessively long toasts for very long sensations
         toastrDuration = Math.max(toastrDuration, 4000); // Minimum duration of 4 seconds to ensure the user has enough time to read the message for short sensations
-        const toastrText = `${pattern} | ${intensity} % | ` +
-            `${durationText} | ${targetChannel}`;
+        const toastrText = `${pattern} (${intensity} % | ` +
+            `${durationText} | ${targetChannel})`;
         console.log(`ESTIM: Showing toast "${toastrText}"`);
         toastr.info(
             toastrText,
