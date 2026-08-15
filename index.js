@@ -1269,24 +1269,19 @@ async function registerAiFunctionTools() {
             required: ['pattern', 'who', 'restricted_remote_control'],
         };
 
-        registerFunctionTool({
-            name: 'inflict_physical_sensation',
-            displayName: 'Inflict Physical Sensation',
-            //description: 'Use this tool to inflict a real physical sensation on the user\'s body. ' +
-            //    'Call this seamlessly while narrating. Use the descriptions in the "pattern" parameter to ' +
-            //    'select the physical sensation that matches the narraded story best. Select intensity and ' +
-            //    'duration according to the rules in the parameter descriptions. Enable or disable a ' +
-            //    'restricted remote control panel that allows the user to partially control the ' +
-            //    'sensation. Physical sensations are grouped into profiles. Sensations in the ' +
-            //    'same profile should be used together to create a more complex sensation experience. ' +
-            //    'The following profiles are currently active:\n' + profilesState.profileDescriptions,
-            description: 'CRITICAL NARRATIVE TOOL: This bridges the gap between your text and the ' +
+        const estimSchemaDescription = 'CRITICAL NARRATIVE TOOL: This bridges the gap between your text and the ' +
                 'player\'s physical reality. Whenever your character physically touches, teases, shocks, ' +
                 'or stimulates the player in the story, you MUST call this tool to make them actually feel ' +
                 'it on their body. You can also deploy a restricted remote control UI to give the player ' +
                 'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
                 'Sensations in the same profile should be used together to create a realistic, layered ' +
-                'experience.\nActive profiles:\n' + profilesState.profileDescriptions,
+                'experience.\nActive profiles:\n' + profilesState.profileDescriptions;
+        console.debug('ESTIM: Registering function tool.', estimSchemaDescription, estimSchema);
+
+        registerFunctionTool({
+            name: 'inflict_physical_sensation',
+            displayName: 'Inflict Physical Sensation',
+            description: estimSchemaDescription,
             parameters: estimSchema,
             stealth: true,
             action: async (args) => {
