@@ -1178,8 +1178,8 @@ async function registerAiFunctionTools() {
                         '2. SAFETY: To access painful intensities > 100, "is_pain_intensity" MUST ' +
                         'be true. Otherwise, the signal is clamped at 100. ' +
                         '3. NARRATIVE SYNC: A gentle tease should be 10-30. A strong, edge-pushing ' +
-                        'vibration 50-80. 80 should be maximum for normal sensations. To enforce climaxes, ' +
-                        'use intensities around 100. A cruel shock is 150+.'
+                        'vibration 50-80. Normal sensations should not exceed 80. To enforce a climax/orgasm, ' +
+                        'jump to intensities around 100. A cruel shock is 150+.'
                 },
                 is_pain_intensity: {
                     type: 'boolean',
@@ -1224,21 +1224,21 @@ async function registerAiFunctionTools() {
                 },
                 restricted_remote_control: {
                     type: 'object',
-                    description: 'CONTROLS THE USER\'S UI. Renders a physical remote control on the user\'s actual screen. ' +
+                    description: 'CONTROLS THE PLAYER\'S UI. Renders a physical remote control panel on the player\'s actual screen. ' +
                         'CRITICAL RULES FOR USAGE: ' +
-                        '1. SCARCITY: Do NOT spam this UI. By default, KEEP IT HIDDEN (disable all modules) to enforce the user\'s helplessness and maintain immersion. ' +
-                        '2. NARRATIVE SYNC: Only show the remote if your character explicitly grants the user a choice, a test of endurance, or a moment of mercy in the dialogue. ' +
+                        '1. SCARCITY: Do NOT spam this UI. By default, KEEP IT HIDDEN (disable all modules) to enforce the player\'s helplessness and maintain immersion. ' +
+                        '2. NARRATIVE SYNC: Only show the remote if your character explicitly grants the user\' character a choice, a test of endurance, or a moment of mercy in the dialogue. ' +
                         '3. THE TRICK-OR-TREAT MODULE (Russian Roulette): The pattern/intensity/duration you set in this tool call will be kept SECRET and will NOT play automatically. ' +
-                        'A button appears. The user must click it to receive the hidden sensation. Use this for tests of courage or blind choices. ' +
+                        'A button appears. The player must click it to receive the hidden sensation. Use this for tests of courage or blind choices. ' +
                         '4. THE STOP MODULE (Panic Button): Enable this as a psychological taunt ("Go ahead, press stop if you are too weak") or a genuine safety mechanism during extreme scenes. ' +
-                        'If combined with Trick-or-Treat, it will appear AFTER the user presses the secret button. ' +
-                        '5. THE CALIBRATION MODULE: Use this BEFORE a severe scene to force the user to set physical limits. (Can only be used alone). ' +
-                        'Use "increase_only: true" in the calibration module to let the user dial the pain/pleasure UP, but never down (SADISTIC TRAP). ' +
+                        'If combined with Trick-or-Treat, it will appear AFTER the player presses the secret button. ' +
+                        '5. THE CALIBRATION MODULE: Use this BEFORE a severe scene to force the player to set physical limits. (Can only be used alone). ' +
+                        'Use "increase_only: true" in the calibration module to let the player dial the pain/pleasure UP, but never down (SADISTIC TRAP). ' +
                         'If the character is completely dominating and allows zero control, you MUST hide the remote by disabling all modules.',
                     properties: {
                         stop_module: {
                             type: 'object',
-                            description: 'A psychological safeword/panic button on the user\'s screen.',
+                            description: 'A psychological safeword/panic button on the player\'s screen.',
                             properties: {
                                 enabled: { type: 'boolean' },
                                 intro_text: { type: 'string', description: 'A short, in-character taunt or instruction (e.g., "Beg for mercy and press it.", "Don\'t you dare touch this.").' },
@@ -1247,19 +1247,19 @@ async function registerAiFunctionTools() {
                         },
                         trick_or_treat_module: {
                             type: 'object',
-                            description: 'A "Russian Roulette" button. Keeps your selected pattern SECRET until the user gathers the courage to press it. Triggers telemetry about their bravery.',
+                            description: 'A "Russian Roulette" button. Keeps your selected pattern SECRET until the player gathers the courage to press it. Triggers telemetry about their bravery.',
                             properties: {
                                 enabled: { type: 'boolean' },
-                                intro_text: { type: 'string', description: 'Taunt the user to press it (e.g., "Let\'s play a game. Press it if you dare.").' },
+                                intro_text: { type: 'string', description: 'Taunt the player to press it (e.g., "Let\'s play a game. Press it if you dare.").' },
                                 button_label: { type: 'string', description: 'What the button says (e.g., "Take the Risk", "Accept Punishment").' }
                             }
                         },
                         calibration_module: {
                             type: 'object',
-                            description: 'Forces the user to lock in their physical limits for the upcoming scene.',
+                            description: 'Forces the player to lock in their physical limits for the upcoming scene.',
                             properties: {
                                 enabled: { type: 'boolean' },
-                                increase_only: { type: 'boolean', description: 'If true, the user can only slide the limits HIGHER. They cannot decrease them. Use this for sadistic choices.' },
+                                increase_only: { type: 'boolean', description: 'If true, the player can only slide the limits HIGHER. They cannot decrease them. Use this for sadistic choices.' },
                                 intro_text: { type: 'string', description: 'In-character instruction (e.g., "Set your limits. Choose wisely.").' }
                             }
                         }
@@ -1281,9 +1281,9 @@ async function registerAiFunctionTools() {
             //    'same profile should be used together to create a more complex sensation experience. ' +
             //    'The following profiles are currently active:\n' + profilesState.profileDescriptions,
             description: 'CRITICAL NARRATIVE TOOL: This bridges the gap between your text and the ' +
-                'user\'s physical reality. Whenever your character physically touches, teases, shocks, ' +
-                'or stimulates the user in the story, you MUST call this tool to make them actually feel ' +
-                'it on their body. You can also deploy a restricted remote control UI to give the user ' +
+                'player\'s physical reality. Whenever your character physically touches, teases, shocks, ' +
+                'or stimulates the player in the story, you MUST call this tool to make them actually feel ' +
+                'it on their body. You can also deploy a restricted remote control UI to give the player ' +
                 'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
                 'Sensations in the same profile should be used together to create a realistic, layered ' +
                 'experience.\nActive profiles:\n' + profilesState.profileDescriptions,
