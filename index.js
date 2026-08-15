@@ -766,15 +766,15 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     if (!quiet && !settings.blindfoldModes) {
         let durationText = '';
         if (duration > 0) {
-            durationText = duration + 's';
+            durationText = duration + ' s';
         } else if (duration < 0) {
-            durationText = 'continuously';
+            durationText = 'looping';
         } else {
-            durationText = 'native length';
+            durationText = 'single pass';
         }
-        if (rawDuration !== null && String(duration) !== String(rawDuration)) {
-            durationText += ` (llm: ${rawDuration})`;
-        }
+        //if (rawDuration !== null && String(duration) !== String(rawDuration)) {
+        //    durationText += ` (llm: ${rawDuration})`;
+        //}
 
 
         //const context = SillyTavern.getContext();
@@ -782,12 +782,12 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         let toastrDuration = duration > 0 ? duration * 1000 : 8000; // Show the toast for the duration of the sensation, or 8 seconds for indefinite sensations
         toastrDuration = Math.min(toastrDuration, 15000); // Cap the toast duration at 15 seconds to avoid excessively long toasts for very long sensations
         toastrDuration = Math.max(toastrDuration, 4000); // Minimum duration of 4 seconds to ensure the user has enough time to read the message for short sensations
-        const toastrText = `${pattern}, intensity ${intensity}%, ` +
-            `duration ${durationText}, ${targetChannel}`;
+        const toastrText = `${pattern} | ${intensity} % | ` +
+            `${durationText} | ${targetChannel}`;
         console.log(`ESTIM: Showing toast "${toastrText}"`);
         toastr.info(
             toastrText,
-            'Estim Immersion', // no title
+            'Inflicting estim immersion', // Title of the toast
             {
                 timeOut: toastrDuration,// Duration in ms before the toast disappears
                 extendedTimeOut: 3000,  // Duration in ms before the toast disappears after a user hovers over it
