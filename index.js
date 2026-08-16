@@ -1262,7 +1262,7 @@ async function registerAiFunctionTools() {
         };
 
         const estimSchemaDescription = 'CRITICAL NARRATIVE TOOL: Triggers the physical e-stim hardware. ' +
-                'Call this whenever the story dictates the user receives electrical stimulation.' +
+                'Call this whenever the story dictates the user receives electrical stimulation. ' +
                 'You can also deploy a restricted remote control UI to give the player ' +
                 'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
                 'Sensations in the same profile should be used together to create a realistic, layered ' +
