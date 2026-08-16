@@ -2,7 +2,7 @@
   "displayName": "Cody's 16th Floor Tease & Punish",
   "name": "cody",
   "author": "JBK",
-  "description": "A welcoming, slow-building introductory tease. The track starts from zero and gradually ramps up over three seconds. {{ESTIM_CH1}} locks into a smooth, steady baseline hum, while {{ESTIM_CH2}} develops a moderate, rhythmic swelling pulse. It provides a soft, entry-level arousal compared to the intense trials ahead.",
+  "description": "From soft teasing to brutal shocks",
   "sensations": [
     {
       "name": "cody_intro_tease",

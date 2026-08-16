@@ -1154,69 +1154,60 @@ async function registerAiFunctionTools() {
                 pattern: {
                     type: 'string',
                     enum: profilesState.patternNames,
-                    description: 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
-                        'it is also indicated in the following description. Current available sensations:\n' +
-                        profilesState.patternDescriptions
+                    description: 'The specific sensation pattern. The enum names are self-descriptive. Match the ' +
+                        'pattern name to the narrative context (e.g. tease, milking, shock, punishment).'
+                    //description: 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
+                    //    'it is also indicated in the following description. Current available sensations:\n' +
+                    //    profilesState.patternDescriptions
                 },
                 intensity: {
                     type: 'integer',
-                    //description: 'Intensity 1-100 (pleasure intensity), 101-200 (pain intensity). Every sensation ' +
-                    //    'can be made painful by increasing its intensity to pain intensity. This means that normal ' +
-                    //    'pleasure sensations will become pain sensations at intensities greater 100, whereas ' +
-                    //    'pain sensations will always be painful regardless of a certain intensity threshold. ' +
-                    //    'To unlock painful intensities, "is_pain_intensity" must be set to true as a safety measure. ' +
-                    //    'Default is 10 (low intensity). The intensity is a multiplier to the intensity indication ' +
-                    //    'in the description.\n' +
-                    //    'Baseline guidance for matching narration: Select the intensity according to the required ' +
-                    //    'intensity to match the current tension in the story. Increase the intensity slowly over ' +
-                    //    'multiple turns. Never rush to the highest intensity right from the start. Build an escalation ' +
-                    //    'over multiple turns.',
                     description: 'Intensity scale: 1-100 (Pleasure/Tingle), 101-200 (Pain/Hard). ' +
-                        'RULES FOR INTENSITY: ' +
-                        '1. PACING: Build the intensity slowly over multiple turns. Do not jump to ' +
-                        'maximum right away unless delivering a severe, sudden punishment. ' +
-                        '2. SAFETY: To access painful intensities > 100, "is_pain_intensity" MUST ' +
-                        'be true. Otherwise, the signal is clamped at 100. ' +
-                        '3. NARRATIVE SYNC: A gentle tease should be 10-30. A strong, edge-pushing ' +
-                        'vibration 50-80. Normal sensations should not exceed 80. To enforce a climax/orgasm, ' +
-                        'jump to intensities around 100. A cruel shock is 150+.'
+                        'Requires is_pain_intensity=true to exceed 100.'
+                    //description: 'Intensity scale: 1-100 (Pleasure/Tingle), 101-200 (Pain/Hard). ' +
+                    //    'RULES FOR INTENSITY: ' +
+                    //    '1. PACING: Build the intensity slowly over multiple turns. Do not jump to ' +
+                    //    'maximum right away unless delivering a severe, sudden punishment. ' +
+                    //    '2. SAFETY: To access painful intensities > 100, "is_pain_intensity" MUST ' +
+                    //    'be true. Otherwise, the signal is clamped at 100. ' +
+                    //    '3. NARRATIVE SYNC: A gentle tease should be 10-30. A strong, edge-pushing ' +
+                    //    'vibration 50-80. Normal sensations should not exceed 80. To enforce a climax/orgasm, ' +
+                    //    'jump to intensities around 100. A cruel shock is 150+.'
                 },
                 is_pain_intensity: {
                     type: 'boolean',
-                    description: 'Whether pain intensity (101-200) shall be available. Default is false.',
+                    description: 'Set to true to unlock pain intensities > 100',
+                    //description: 'Whether pain intensity (101-200) shall be available. Default is false.',
                 },
                 duration: {
                     type: 'string',
-                    //description: 'Duration of the inflicted sensation. Default is 0, which plays ' +
-                    //    'the pattern for its native pattern length as indicated in the pattern description. ' +
-                    //    'Provide a fixed number for absolute seconds (e.g. "5", "2.5") or a percentage ' +
-                    //    'based on the narrative length (e.g. "100%", "50%"). "100%" calculates the exact ' +
-                    //    'reading time of your response. "-1" loops the pattern continuously. ' +
-                    //    'Baseline guidance: Use fixed short times (e.g. "2") for brief zaps, and mainly ' +
-                    //    'percentages for sensations accompanying your narrative.',
-                    description: 'Controls the pacing of the physical sensation. ' +
-                        'CRITICAL TIMING RULES: ' +
-                        '1. BACKGROUND FEELING (Percentages): Use "100%" or "50%" for sensations ' +
-                        'that accompany your dialogue (e.g., a vibrator humming while you speak). ' +
-                        '"100%" makes the audio last exactly as long as it takes the user to read ' +
-                        'your response. ' +
-                        '2. SUDDEN IMPACT (Seconds): Use short fixed numbers (e.g., "0.5", "2") for ' +
-                        'brief, sharp events in the story like a slap, a sudden zap, or a quick pinch. ' +
-                        '3. LINGERING STATE (-1): Use "-1" to loop the sensation infinitely. Use ' +
-                        'this ONLY when explicitly leaving a device running to torment or tease ' +
-                        'the user while waiting for their next reply. ' +
-                        '4. NATIVE (0): Use "0" to play the pattern exactly once for its native ' +
-                        'length.'
+                    description: 'Pacing. \'100%\' = background feeling matching read time. ' +
+                        '\'0.5\' / \'2\' = sudden quick impacts. \'-1\' = infinite loop to leave user ' +
+                        'tormented/waiting. \'0\' = native length.'
+                    //description: 'Controls the pacing of the physical sensation. ' +
+                    //    'CRITICAL TIMING RULES: ' +
+                    //    '1. BACKGROUND FEELING (Percentages): Use "100%" or "50%" for sensations ' +
+                    //    'that accompany your dialogue (e.g., a vibrator humming while you speak). ' +
+                    //    '"100%" makes the audio last exactly as long as it takes the user to read ' +
+                    //    'your response. ' +
+                    //    '2. SUDDEN IMPACT (Seconds): Use short fixed numbers (e.g., "0.5", "2") for ' +
+                    //    'brief, sharp events in the story like a slap, a sudden zap, or a quick pinch. ' +
+                    //    '3. LINGERING STATE (-1): Use "-1" to loop the sensation infinitely. Use ' +
+                    //    'this ONLY when explicitly leaving a device running to torment or tease ' +
+                    //    'the user while waiting for their next reply. ' +
+                    //    '4. NATIVE (0): Use "0" to play the pattern exactly once for its native ' +
+                    //    'length.'
                 },
                 target_channel: {
                     type: 'string',
                     enum: ['both', 'ch1', 'ch2'],
-                    description: `Which body part to stimulate. Select 'both' to stimulate ${ch1_text} and ` +
-                        `${ch2_text}. Select 'ch1' to strictly isolate the signal to: ${ch1_text}. ` +
-                        `Select 'ch2' to strictly isolate the signal to: ${ch2_text}. Default is 'both'. ` +
-                        `Baseline guidance for matching narration: If the narration explicitly focuses on one body part, ` +
-                        `select the corresponding channel to increase immersion. For more general sensations ` +
-                        `or when both body parts are involved in the narration, select 'both'.`
+                    description: 'Select \'both\' for general stimulation, \'ch1\' for ${ch1_text} only, \'ch2\' for ${ch2_text} only.'
+                    //description: `Which body part to stimulate. Select 'both' to stimulate ${ch1_text} and ` +
+                    //    `${ch2_text}. Select 'ch1' to strictly isolate the signal to: ${ch1_text}. ` +
+                    //    `Select 'ch2' to strictly isolate the signal to: ${ch2_text}. Default is 'both'. ` +
+                    //    `Baseline guidance for matching narration: If the narration explicitly focuses on one body part, ` +
+                    //    `select the corresponding channel to increase immersion. For more general sensations ` +
+                    //    `or when both body parts are involved in the narration, select 'both'.`
                 },
                 who: {
                     type: 'string',
@@ -1224,17 +1215,18 @@ async function registerAiFunctionTools() {
                 },
                 restricted_remote_control: {
                     type: 'object',
-                    description: 'CONTROLS THE PLAYER\'S UI. Renders a physical remote control panel on the player\'s actual screen. ' +
-                        'CRITICAL RULES FOR USAGE: ' +
-                        '1. SCARCITY: Do NOT spam this UI. By default, KEEP IT HIDDEN (disable all modules) to enforce the player\'s helplessness and maintain immersion. ' +
-                        '2. NARRATIVE SYNC: Only show the remote if your character explicitly grants the user\' character a choice, a test of endurance, or a moment of mercy in the dialogue. ' +
-                        '3. THE TRICK-OR-TREAT MODULE (Russian Roulette): The pattern/intensity/duration you set in this tool call will be kept SECRET and will NOT play automatically. ' +
-                        'A button appears. The player must click it to receive the hidden sensation. Use this for tests of courage or blind choices. ' +
-                        '4. THE STOP MODULE (Panic Button): Enable this as a psychological taunt ("Go ahead, press stop if you are too weak") or a genuine safety mechanism during extreme scenes. ' +
-                        'If combined with Trick-or-Treat, it will appear AFTER the player presses the secret button. ' +
-                        '5. THE CALIBRATION MODULE: Use this BEFORE a severe scene to force the player to set physical limits. (Can only be used alone). ' +
-                        'Use "increase_only: true" in the calibration module to let the player dial the pain/pleasure UP, but never down (SADISTIC TRAP). ' +
-                        'If the character is completely dominating and allows zero control, you MUST hide the remote by disabling all modules.',
+                    description: 'Deploys UI modules to the players screen. Keep all disabled by default.',
+                    //description: 'CONTROLS THE PLAYER\'S UI. Renders a physical remote control panel on the player\'s actual screen. ' +
+                    //    'CRITICAL RULES FOR USAGE: ' +
+                    //    '1. SCARCITY: Do NOT spam this UI. By default, KEEP IT HIDDEN (disable all modules) to enforce the player\'s helplessness and maintain immersion. ' +
+                    //    '2. NARRATIVE SYNC: Only show the remote if your character explicitly grants the user\' character a choice, a test of endurance, or a moment of mercy in the dialogue. ' +
+                    //    '3. THE TRICK-OR-TREAT MODULE (Russian Roulette): The pattern/intensity/duration you set in this tool call will be kept SECRET and will NOT play automatically. ' +
+                    //    'A button appears. The player must click it to receive the hidden sensation. Use this for tests of courage or blind choices. ' +
+                    //    '4. THE STOP MODULE (Panic Button): Enable this as a psychological taunt ("Go ahead, press stop if you are too weak") or a genuine safety mechanism during extreme scenes. ' +
+                    //    'If combined with Trick-or-Treat, it will appear AFTER the player presses the secret button. ' +
+                    //    '5. THE CALIBRATION MODULE: Use this BEFORE a severe scene to force the player to set physical limits. (Can only be used alone). ' +
+                    //    'Use "increase_only: true" in the calibration module to let the player dial the pain/pleasure UP, but never down (SADISTIC TRAP). ' +
+                    //    'If the character is completely dominating and allows zero control, you MUST hide the remote by disabling all modules.',
                     properties: {
                         stop_module: {
                             type: 'object',
@@ -1269,10 +1261,9 @@ async function registerAiFunctionTools() {
             required: ['pattern', 'who', 'restricted_remote_control'],
         };
 
-        const estimSchemaDescription = 'CRITICAL NARRATIVE TOOL: This bridges the gap between your text and the ' +
-                'player\'s physical reality. Whenever your character physically touches, teases, shocks, ' +
-                'or stimulates the player in the story, you MUST call this tool to make them actually feel ' +
-                'it on their body. You can also deploy a restricted remote control UI to give the player ' +
+        const estimSchemaDescription = 'CRITICAL NARRATIVE TOOL: Triggers the physical e-stim hardware. ' +
+                'Call this whenever the story dictates the user receives electrical stimulation.' +
+                'You can also deploy a restricted remote control UI to give the player ' +
                 'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
                 'Sensations in the same profile should be used together to create a realistic, layered ' +
                 'experience.\nActive profiles:\n' + profilesState.profileDescriptions;
