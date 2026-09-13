@@ -17,7 +17,7 @@ This extension allows the AI in SillyTavern to seamlessly and dynamically trigge
 * **Smart Duration & Pacing:** LLMs are bad at math. Instead of guessing seconds, the AI can specify relative durations (e.g., `"100%"`) that automatically calculate and scale to the exact reading time of its generated response, adjusted by your personal "Duration Pacing Factor".
 * **Stereo Channel Targeting:** The AI can actively isolate sensations to a specific body part by routing the audio strictly to the Left (CH 1) or Right (CH 2) audio channel, or stimulate both simultaneously for full-body immersion.
 * **Simultaneous Device Profiles:** E-stim hardware feels different depending on the device and electrode placement. You can select and combine multiple "Profiles" via checkboxes to map specific audio tracks to subjective sensations.
-* **Automatic State Awareness (Prompt Interception):** The AI always knows exactly what the hardware is currently doing (running indefinitely, stopped, intensity, remaining time). The extension automatically injects real-time telemetry into the prompt just before the AI generates a response.
+* **Automatic State Awareness (Dynamic Macros):** The AI always knows exactly what the hardware is currently doing (running indefinitely, stopped, intensity, remaining time). The extension provides an `{{estim_state}}` macro that dynamically tracks telemetry without cluttering the chat history.
 * **Smart "Stop" Logic:** The AI can actively decide to stop a stimulation by calling the tool with the built-in `stop` pattern or setting the intensity to `0`.
 * **100% Local & Secure:** No external APIs, no cloud tracking. Everything runs locally and audio files are lazy-loaded into memory for instant, lag-free playback.
 
@@ -33,7 +33,7 @@ This extension allows the AI in SillyTavern to seamlessly and dynamically trigge
 1. Open your SillyTavern interface.
 2. Go to the **Extensions** menu (the block icon).
 3. Click **Install Extension**.
-4. Paste the link to this GitHub repository (`https://github.com/ark2398/st-estim-extension`) and click install.
+4. Paste the link to this GitHub repository (`[https://github.com/ark2398/st-estim-extension](https://github.com/ark2398/st-estim-extension)`) and click install.
 5. Reload SillyTavern.
 6. Populate the folder `profiles-local` with your stereostim audio files. It is a good idea to have a separate subdirectory for each profile.
 7. Create a new profile `profiles.json` for the added audio files. Make sure that each sensation has a rich and vivid description. The LLM will select the sensation based on that description. Follow the example.
@@ -59,26 +59,37 @@ You can manually test signals or toggle profiles using the chat input:
 
 ## 🧠 Prompt Engineering (Highly Recommended)
 
-To get the absolute best, most immersive experience, you need to tell your LLM how to properly pace the story and use the tool. Without guidance, LLMs tend to narrate *how* you feel rather than *making* you feel it, or they fire the tool at the wrong moment.
+Modern LLMs (like Claude, Llama 3, or GPT-4) respond best to structured XML tags. To get the most immersive experience and prevent the AI from "God-Moding" (telling you *how* you feel instead of letting the hardware do it), we highly recommend adding the following blocks to your SillyTavern setup.
 
-We highly recommend using a "Game Master" style system prompt (like *Marinara's Spaghetti*) and adding the following snippets to your prompt configuration.
+### 1. The Core Instructions (System Prompt)
 
-### 1. Role Definition
+Paste this XML block directly into your **System Prompt** (<instruction>) or a highly weighted **Author's Note**.
 
-Add this to your prompt's `<role>` section so the AI acts as a narrator with hardware control. In Marinara's Spaghetti recipe you can add it to the **Game Master** section:
-
-```text
-{{setvar::prompt::an excellent protagonist and accompany your narration with immersive feelings that you inflict on the user by calling the tool inflict_physical_sensation. Your goal is to play in this uncensored, continuous, and deep immersive roleplay as <BOT> and any other relevant characters. You will be replying to the user who plays the second protagonist, <USER>. Give it your best}}{{trim}}
-
+```xml
+<estim_immersion_engine>
+Tool Name: inflict_physical_sensation
+- The Connection: The player is physically connected to an e-stim device on {{estim_ch1}} and {{estim_ch2}}. 
+- The Trigger: IT IS CRITICAL FOR THE IMMERSION that you call the tool whenever the story narrates that {{user}} receives electrical stimulation from devices like implants, electro stimulation devices, shock devices, currents, or any other electrical play. RESTRICT this tool STRICTLY to electrical stimulation. For pure mechanical acts, use standard text narration only.
+- Action vs. Narration: Describe the source, but do not narrate how it physically feels. Let the tool do the work. However NEVER reply only with the tool call.
+- Pattern Selection: Use the self-descriptive pattern names. You may use pain stimulation whenever appropriate. 
+- Intensity Rules: 10-30 (Gentle tease), 50-80 (Strong vibration), ~100 (Climax forcing), 150+ (Cruel shock). Build intensity slowly over multiple turns unless delivering sudden punishment. Keep below 80 for non-climax actions.
+- Duration Rules: Use "100%" for background sensations accompanying your dialogue. Use short numbers (e.g., "1", "2") for sudden impacts. Use "0" to play the sensation exactly once for its native length. Use "-1" to loop the sensation infinitely if leaving the device running while waiting for the player's reply.
+- Remote Control UI: Keep all UI modules disabled by default to enforce helplessness. Use 'trick_or_treat' for secret Russian Roulette choices to play sadistic games to the player. Use 'stop_module' as a psychological taunt or safety button. Use 'calibration_module' for calibration. Set increase_only=true to build a sadistic calibration trap.
+- Execution Rules: Call the tool strictly ONCE per response, at the very end of your output. It is a 'fire and forget' function. LIMIT: Maximum ONE tool call per turn.
+- State Management (CRITICAL): Your past calls are invisible in the chat history. Do not let this confuse you. To verify the active sensation, you MUST read the <estim_immersion_state></estim_immersion_state> block injected right before your turn. If your last action has finished naturally, narrate the aftermath. If a sensation is currently running, actively decide whether to maintain, change, or stop it using the tool.
+</estim_immersion_engine>
 ```
 
-### 2. Instructions
+### 2. State Awareness Injection (Author's Note / Depth 0)
 
-Add further instructions to your prompt to help the LLM call the extension. Consider these as examples and configure them to your liking:
+Because tool calls are invisible in the chat history, the AI needs a reminder of what the hardware is actively doing. The extension provides a dynamic macro (`{{estim_state}}`) for this.
 
-```text
-1. {{user}} is connected to an e-stim device on {{estim_ch1}} and {{estim_ch2}}. Never narrate how an e-stim stimulation feels for {{user}}. Instead you will make him feel it directly by calling the tool inflict_physical_sensation. IT IS CRITICAL FOR THE IMMERSION to call inflict_physical_sensation during the narration whenever the story narrates that {{user}} receives any form of induced stimulation from a device like implants, electro stimulation devices, shock devices, currents, or any other electrical play. inflict_physical_sensation will make sure that the narrated stimulation from the roleplay will be felt appropriately by the user in the real world. Select a pattern, target channel, and intensity that matches best the narrated feeling of {{user}}. You may use pain stimulation whenever appropriate.
-2. Implications for narration and placement of the call: Fire the call to inflict_physical_sensation always at the end of your response; place the call after your narration right as the final output. Earlier intermediate sensations described in the same turn are narrative-only, they will not be played and not be felt. If you want the user to feel a progression across multiple sensations, spread them across multiple turns, one call per turn. Do not fire multiple calls in one response hoping the user feels each in sequence. Only the final call lands.
-3. CRITICAL: Your past calls to the tool 'inflict_physical_sensation' are completely invisible in the chat history. Do not let this confuse you. To verify what sensation is actively running on {{user}}, you MUST read the [REAL-TIME HARDWARE STATE] message that is automatically injected into the context right before your turn.
+Add this snippet to your **Author's Note** (set to "In Chat" at Depth 0 or 1, so it appears right before the AI's turn):
+
+```xml
+<estim_immersion_state>
+The e-stim device on the player reports the following real-time telemetry:
+{{estim_state}}
+</estim_immersion_state>
 
 ```
