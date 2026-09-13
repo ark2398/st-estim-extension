@@ -764,7 +764,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
     audioState.targetChannel = targetChannel;
 
     // Console + system message
-    if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | fade-in 12ms`);
+    if (DEBUG_MODE) console.log(`ESTIM: 🎵 Playing ${sensation.file} | intensity ${intensity}% | gain ${targetVolume} | fade-in ${fadeInTime}ms`);
 
     if (!quiet && !settings.blindfoldModes) {
         let durationText = '';
