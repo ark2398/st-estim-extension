@@ -662,6 +662,9 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         targetVolume = Math.max(0, targetVolume);
     }
 
+    // Prevents clipping (> 1.0) and prevents the fatal RangeError (<= 0)
+    targetVolume = Math.min(1.0, Math.max(0.001, targetVolume));
+
     const now = audioState.audioContext.currentTime;
     const fadeInTime = 0.012;   // 12 ms fade-in — this kills the plop
 
@@ -815,6 +818,7 @@ function stopAllEstimSignals(stealth = false, fadeOutMs = 15, quiet = false) {
     try {
         if (audioState.audioGain) {
             audioState.audioGain.gain.cancelScheduledValues(now);
+            audioState.audioGain.gain.setValueAtTime(audioState.audioGain.gain.value, now);
             audioState.audioGain.gain.exponentialRampToValueAtTime(0.001, now + fadeOutMs / 1000);
             audioState.audioGain = null;
         }
@@ -1757,9 +1761,9 @@ async function registerUiRemote() {
         $('.estim-calib-play-btn').removeClass('estim-playing').text('▶');
         hideRemoteControlWidget();
 
-        const minCalibration = $('#estim_calib_min_slider').val();
-        const maxPleasureCalibration = $('#estim_calib_pleasure_slider').val();
-        const maxPainCalibration = $('#estim_calib_pain_slider').val();
+        const minCalibration = parseFloat($('#estim_calib_min_slider').val());
+        const maxPleasureCalibration = parseFloat($('#estim_calib_pleasure_slider').val());
+        const maxPainCalibration = parseFloat($('#estim_calib_pain_slider').val());
 
         const settings = getSettings();
         if (!settings.remoteThresholds) settings.remoteThresholds = {};
