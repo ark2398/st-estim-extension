@@ -47,9 +47,9 @@ const FILE_CONFIG_PROFILES = 'profiles.json';
 const DEFAULT_CHANNEL_1_NAME = 'Genitals';
 const DEFAULT_CHANNEL_2_NAME = 'Buttocks';
 
-const ESTIM_MIN_AUDIOVOLUME = 0.2;
-const ESTIM_MAX_PLEASURE_AUDIOVOLUME = 0.7;
-const ESTIM_MAX_PAIN_AUDIOVOLUME = 1.0;
+const ESTIM_MIN_AUDIOVOLUME = 0.0;
+const ESTIM_MAX_PLEASURE_AUDIOVOLUME = 0.0;
+const ESTIM_MAX_PAIN_AUDIOVOLUME = 0.0;
 
 // Global State
 let generationEndedHandler = null;
@@ -157,8 +157,9 @@ let restrRemoteState = {
 
 // Define default settings
 const defaultSettings = Object.freeze({
-    lastActiveProfiles: [], // Remembers the last selected profiles
-    channel1: DEFAULT_CHANNEL_1_NAME, // Name of channel 1 for AI tool context
+    isCalibrated: false,               // Whether the user has completed the initial calibration process
+    lastActiveProfiles: [],            // Remembers the last selected profiles
+    channel1: DEFAULT_CHANNEL_1_NAME,  // Name of channel 1 for AI tool context
     channel2: DEFAULT_CHANNEL_2_NAME,  // Name of channel 2 for AI tool context
     durationStretchFactor: 1.5,        // Pacing factor for smart durations
     customCalibrations: {},            // Personal calibrations for each
@@ -579,6 +580,20 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
         return true;
     }
 
+    // Check if the hardware is calibrated. If not, we cannot play any signals,
+    // so we show an error message and stop any ongoing signals. The
+    // overrideAudioCalibration parameter allows us to bypass this check if
+    // a specific calibration value is provided, which can be useful for testing
+    // or special cases.
+    if (!settings.isCalibrated && overrideAudioCalibration === null) {
+        if (!quiet) {
+            toastr.error("ESTIM hardware locked. Please calibrate your limits first using /estim-calibrate.", "Calibration Required", { timeOut: 10000 });
+        }
+        if (DEBUG_MODE) console.warn("ESTIM: Playback rejected. Hardware not calibrated.");
+        stopAllEstimSignals();
+        return false;
+    }
+
     // Retrieve profile
     const profile = profilesState.profiles[profileId];
     if (!profile) {
@@ -612,6 +627,7 @@ async function playEstimSignal(pattern, intensity = 10, duration = 0, targetChan
 
     let targetVolume = 0;
     if (overrideAudioCalibration !== null) {
+        if (DEBUG_MODE) console.log(`ESTIM: Setting target volume to override calibration value ${overrideAudioCalibration}`);
         targetVolume = overrideAudioCalibration;
     }
     else {
@@ -1266,11 +1282,11 @@ async function registerAiFunctionTools() {
         };
 
         const estimSchemaDescription = 'CRITICAL NARRATIVE TOOL: Triggers the physical e-stim hardware. ' +
-                'Call this whenever the story dictates the user receives electrical stimulation. ' +
-                'You can also deploy a restricted remote control UI to give the player ' +
-                'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
-                'Sensations in the same profile should be used together to create a realistic, layered ' +
-                'experience.\nActive profiles:\n' + profilesState.profileDescriptions;
+            'Call this whenever the story dictates the user receives electrical stimulation. ' +
+            'You can also deploy a restricted remote control UI to give the player ' +
+            'sadistic choices or limited safety mechanisms. Sensations are grouped into profiles. ' +
+            'Sensations in the same profile should be used together to create a realistic, layered ' +
+            'experience.\nActive profiles:\n' + profilesState.profileDescriptions;
         console.debug('ESTIM: Registering function tool.', estimSchemaDescription, estimSchema);
 
         registerFunctionTool({
@@ -1768,6 +1784,11 @@ async function registerUiRemote() {
         const settings = getSettings();
         if (!settings.remoteThresholds) settings.remoteThresholds = {};
 
+        // Rember that the user has completed the calibration process.
+        // This flag is used to prevent the user from starting the stimulation without
+        // first setting their limits.
+        settings.isCalibrated = true;
+
         // Remember old values
         const minCalibrationOld = settings.minCalibration || ESTIM_MIN_AUDIOVOLUME;
         const maxPleasureCalibrationOld = settings.maxPleasureCalibration || ESTIM_MAX_PLEASURE_AUDIOVOLUME;
@@ -2136,59 +2157,59 @@ async function registerUiMacros() {
 
 globalThis.estimPromptInterceptor = async function (chat, contextSize, abort, type) {
     console.log('ESTIM: Prompt interceptor called. Current chat:', chat, contextSize, type);
-/*
-    // No background tasks
-    if (type === 'quiet') {
-        return; // Early Return für Hintergrund-Generierungen
-    }
+    /*
+        // No background tasks
+        if (type === 'quiet') {
+            return; // Early Return für Hintergrund-Generierungen
+        }
 
-    // Fetch the normal hardware status string
-    let telemetryString = getAudioStateString();
+        // Fetch the normal hardware status string
+        let telemetryString = getAudioStateString();
 
-    // Check if the user ignored a pending trick challenge and add telemetry if so.
-    // This allows the LLM to react to the user's choice of ignoring the challenge,
-    // which can be just as narratively interesting as accepting it. By
-    // acknowledging the user's decision to avoid the secret button,
-    // the LLM can adapt the story accordingly, perhaps by describing the character's
-    // cautious behavior or missed opportunities for unexpected sensations.
-    // This adds depth and responsiveness to the narrative, making the user's
-    // choices feel meaningful even when they opt for safety.
-    if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
-        restrRemoteState.telemetryQueue.push(
-            `The user was too scared to press your secret button and completely ignored your challenge! React to their cowardice.`
-        );
+        // Check if the user ignored a pending trick challenge and add telemetry if so.
+        // This allows the LLM to react to the user's choice of ignoring the challenge,
+        // which can be just as narratively interesting as accepting it. By
+        // acknowledging the user's decision to avoid the secret button,
+        // the LLM can adapt the story accordingly, perhaps by describing the character's
+        // cautious behavior or missed opportunities for unexpected sensations.
+        // This adds depth and responsiveness to the narrative, making the user's
+        // choices feel meaningful even when they opt for safety.
+        if (restrRemoteState.remoteControlConfig?.trick_or_treat_module?.enabled) {
+            restrRemoteState.telemetryQueue.push(
+                `The user was too scared to press your secret button and completely ignored your challenge! React to their cowardice.`
+            );
 
-        // Hide the Trick-or-Treat button and clean UI
-        remoteControlConfig.trick_or_treat_module.enabled = false;
-        configureRemoteControlWidget();
-    }
+            // Hide the Trick-or-Treat button and clean UI
+            remoteControlConfig.trick_or_treat_module.enabled = false;
+            configureRemoteControlWidget();
+        }
 
-    // Show current remote control config in the telemetry if it is open.
-    if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
-        telemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
-    }
+        // Show current remote control config in the telemetry if it is open.
+        if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
+            telemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
+        }
 
-    // Add remote control events, if any
-    if (restrRemoteState.telemetryQueue.length > 0) {
-        telemetryString += ` | RESTRICTED REMOTE CONTROL EVENTS: ` + restrRemoteState.telemetryQueue.join(' ');
-        restrRemoteState.telemetryQueue = []; // Clear the queue after reading
-    }
+        // Add remote control events, if any
+        if (restrRemoteState.telemetryQueue.length > 0) {
+            telemetryString += ` | RESTRICTED REMOTE CONTROL EVENTS: ` + restrRemoteState.telemetryQueue.join(' ');
+            restrRemoteState.telemetryQueue = []; // Clear the queue after reading
+        }
 
-    const systemNote = {
-        name: "Hardware State",
-        is_user: false,
-        is_system: true,
-        send_date: Date.now(),
-        mes: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
-            telemetryString + `]\n\n` +
-            `SYSTEM INSTRUCTION: Acknowledge this physical reality in your narrative. If your last action ` +
-            `has finished naturally, narrate the aftermath. If a sensation is currently running, actively ` +
-            `decide whether to maintain, change, or stop it using the 'inflict_physical_sensation' tool.]`
-    };
+        const systemNote = {
+            name: "Hardware State",
+            is_user: false,
+            is_system: true,
+            send_date: Date.now(),
+            mes: `[REAL-TIME HARDWARE STATE: The e-stim device on {{user}} reports the following telemetry: ` +
+                telemetryString + `]\n\n` +
+                `SYSTEM INSTRUCTION: Acknowledge this physical reality in your narrative. If your last action ` +
+                `has finished naturally, narrate the aftermath. If a sensation is currently running, actively ` +
+                `decide whether to maintain, change, or stop it using the 'inflict_physical_sensation' tool.]`
+        };
 
-    // Insert before the last message
-    chat.splice(chat.length - 1, 0, systemNote);
-    */
+        // Insert before the last message
+        chat.splice(chat.length - 1, 0, systemNote);
+        */
 };
 
 

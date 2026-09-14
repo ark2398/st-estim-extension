@@ -41,12 +41,27 @@ This extension allows the AI in SillyTavern to seamlessly and dynamically trigge
 
 ## 🎮 Usage
 
-1. Connect your audio-responsive e-stim device to your PC/Device's audio output.
+**⚠️ IMPORTANT: First Run Calibration**
+For safety reasons, the extension defaults to 0% output volume on a fresh installation to prevent accidental high-intensity signals. **The hardware remains locked and will not output any audio until you complete the calibration.** To calibrate, you must first load at least one profile and run
+the `/estim-calibrate` command.
+
+**Step 1: Hardware & Profiles (Prerequisites)**
+1. Connect your audio-responsive e-stim device to your PC/Device's audio output. **Turn the physical volume dial on your e-stim unit to the lowest setting!**
 2. Open the **Extensions Settings** in SillyTavern and find the **ESTIM Immersion** section.
-3. Select one or more hardware setups from the **Active Device Profiles** list using the checkboxes.
-4. Enter your electrode placements in the **CH 1** and **CH 2** fields (e.g., "left arm", "lower back"). The AI uses this to target specific body parts.
-5. Adjust the **Duration Pacing Factor** (Default: 2.5) to stretch or shorten the stimulation time per generated word according to your reading speed.
-6. Start roleplaying!
+3. Select one or more hardware setups from the **Active Device Profiles** list using the checkboxes. This loads the audio patterns required for calibration.
+4. Enter your electrode placements in the **CH 1** and **CH 2** fields (e.g., "left arm", "lower back").
+
+**Step 2: Unlock via Calibration**
+1. Turn the physical volume dial on your e-stim unit to an acceptable amplification level. (From 
+your own experience.)
+2. In the SillyTavern chat input, type `/estim-calibrate pattern=` and select the desired pattern to use for calibration from the list. Then press Enter.
+3. The Restricted Remote Control will open on your screen.
+4. Set all sliders to the left, then slowly increase the sliders and use the `▶` play buttons to test the minimum feeling (threshold), the maximum pleasure limit, and your absolute pain limit. 
+5. Click **Save Calibration**. This saves the calibration values into the settings and permanently unlocks the extension.
+
+**Step 3: Gameplay Setup**
+1. Adjust the **Duration Pacing Factor** in the settings (Default: 1.5) to stretch or shorten the stimulation time per generated word according to your reading speed.
+2. Start roleplaying!
 
 ### Manual Commands
 
