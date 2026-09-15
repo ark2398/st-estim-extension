@@ -167,7 +167,8 @@ const defaultSettings = Object.freeze({
     maxPleasureCalibration: null,      // Maximum calibration value for pleasure sensations
     maxPainCalibration: null,          // Maximum calibration value for pain sensations
     blindfoldModes: false,             // Whether to hide the toast notifications when a sensation is played.
-    simulationOnly: false              // Whether to only simulate the sensations without actually outputting them.
+    simulationOnly: false,             // Whether to only simulate the sensations without actually outputting them.
+    verboseToolDescriptions: false     // Whether to provide verbose descriptions of the sensations in the AI tools
 });
 
 
@@ -1168,17 +1169,21 @@ async function registerAiFunctionTools() {
         const ch1_text = settings.channel1 || DEFAULT_CHANNEL_1_NAME;
         const ch2_text = settings.channel2 || DEFAULT_CHANNEL_2_NAME;
 
+        // Dynamic description for the pattern parameter
+        const patternDescription = settings.verboseToolDescriptions
+            ? 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
+            'it is also indicated in the following description. Current available sensations:\n' +
+            profilesState.patternDescriptions
+            : 'The specific sensation pattern. The enum names are self-descriptive. Match the pattern name ' +
+            'to the narrative context (e.g. tease, milking, shock, punishment).';
+
         const estimSchema = {
             type: 'object',
             properties: {
                 pattern: {
                     type: 'string',
                     enum: profilesState.patternNames,
-                    description: 'The specific sensation pattern. The enum names are self-descriptive. Match the ' +
-                        'pattern name to the narrative context (e.g. tease, milking, shock, punishment).'
-                    //description: 'The sensation pattern to inflict on the user. If a sensation is painful due to its shape, ' +
-                    //    'it is also indicated in the following description. Current available sensations:\n' +
-                    //    profilesState.patternDescriptions
+                    description: patternDescription
                 },
                 intensity: {
                     type: 'integer',
@@ -1661,6 +1666,7 @@ async function registerUiElements() {
     await registerUiChannelNames();
     await registerUiBlindfoldMode();
     await registerUiSimulationOnly();
+    await registerUiVerboseToolMode();
     await registerUiStretchFactor();
     await registerUiStopButton();
     await registerUiCalibrationStudio();
@@ -1935,6 +1941,32 @@ async function registerUiSimulationOnly() {
         }
 
         await updateSettings();
+    });
+}
+
+
+/**
+ * Registers a checkbox in the UI to toggle verbose tool descriptions.
+ * When enabled, the full pattern descriptions are sent to the AI,
+ * improving accuracy for large models but consuming more context tokens.
+ */
+async function registerUiVerboseToolMode() {
+    const settings = getSettings();
+    const $verboseCheckbox = $('#estim_verbose_tool_checkbox');
+
+    // Sets the checkbox based on the saved setting
+    $verboseCheckbox.prop('checked', settings.verboseToolDescriptions);
+
+    // Event listener for checkbox changes
+    $verboseCheckbox.on('change', async function () {
+        settings.verboseToolDescriptions = $(this).is(':checked');
+
+        // This automatically calls registerAiFunctionTools() and injects the new schema!
+        await updateSettings();
+
+        if (DEBUG_MODE) {
+            console.log(`ESTIM: Verbose tool descriptions set to ${settings.verboseToolDescriptions}`);
+        }
     });
 }
 
