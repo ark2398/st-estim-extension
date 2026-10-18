@@ -934,6 +934,7 @@ async function setupAutoAudioUnlock() {
  */
 function getAudioStateString() {
     // State when the sensation was started
+    /*
     let state = `{ "last_action_triggered_by_you": `;
     if (audioState.pattern) {
         state += `{ "pattern": "${audioState.pattern}", "intensity": ${audioState.intensity}`;
@@ -948,11 +949,12 @@ function getAudioStateString() {
     }
     else {
         state += `"None"`;
-    }
+    }*/
 
     // Current real-time state of the audio (which might differ from the last triggered
     // action if the duration is long or looping)
-    state = state + `, "current_real_time_state": `
+    //state = state + `, "current_real_time_state": `
+    let state = `{ "current_real_time_state": `
     if (audioState.playing) {
         const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
         state += `{ "pattern": "${audioState.pattern}", "intensity": ${audioState.intensity}, `;
@@ -1142,6 +1144,36 @@ function hideRemoteControlWidget() {
 
 
 /**
+ * Helper function: Scans the last n messages for stored estim triggers and builds a JSON array
+ * for the LLM to remember its past exact tool calls.
+ */
+function getInflictPhysicalSensationHistoryArray(n = 5) {
+    const context = SillyTavern.getContext();
+    const chat = context.chat;
+    const startIndex = Math.max(0, chat.length - n);
+
+    let historyArray = [];
+
+    for (let i = startIndex; i < chat.length; i++) {
+        const msg = chat[i];
+
+        if (msg.extra && msg.extra[MODULE_NAME]) {
+            const turnsAgo = chat.length - i;
+
+            // Copy the raw arguments of the past tool call to avoid mutating the original message object
+            const pastCall = structuredClone(msg.extra[MODULE_NAME]);
+
+            // Add timing information as a meta-parameter
+            pastCall._turns_ago = turnsAgo;
+            historyArray.push(pastCall);
+        }
+    }
+
+    return historyArray;
+}
+
+
+/**
  * Register function tools for this extension. This allows the AI to call these
  * functions during narration.
  * @returns {Promise<void>}
@@ -1208,9 +1240,9 @@ async function registerAiFunctionTools() {
                 },
                 duration: {
                     type: 'string',
-                    description: 'Pacing. \'100%\' = background feeling matching read time. ' +
-                        '\'0.5\' / \'2\' = sudden quick impacts. \'-1\' = infinite loop to leave user ' +
-                        'tormented/waiting. \'0\' = native length.'
+                    description: 'MUST BE A STRING IN QUOTES. Pacing. \"100%\" = background feeling matching read time. ' +
+                        '\"0.5\" / \"2\" = sudden quick impacts. \"-1\" = infinite loop to leave user ' +
+                        'tormented/waiting. \"0\" = native length.'
                     //description: 'Controls the pacing of the physical sensation. ' +
                     //    'CRITICAL TIMING RULES: ' +
                     //    '1. BACKGROUND FEELING (Percentages): Use "100%" or "50%" for sensations ' +
@@ -1351,7 +1383,35 @@ async function registerAiFunctionTools() {
                 scheduledNextAction.durationRaw = args.duration; // Store the raw value for reference
                 scheduledNextAction.targetChannel = args.target_channel || 'both';
                 scheduledNextAction.remoteControlConfig = args.restricted_remote_control;
+                scheduledNextAction.finalDurationSeconds = 0;
                 scheduledNextAction.pending = true;
+
+                // Store the complete arguments of the tool call in the last message's
+                // extra (chat metadata) field to build the estim history.
+                const context = SillyTavern.getContext();
+                if (context.chat.length > 0) {
+                    const lastMessage = context.chat[context.chat.length - 1];
+
+                    // Store in current extra object or create a new one if it doesn't exist
+                    lastMessage.extra = lastMessage.extra || {};
+                    lastMessage.extra[MODULE_NAME] = structuredClone(args);
+
+                    // Synronize the extra data into the current swipe to ensure it is saved in the chat history.
+                    if (lastMessage.swipe_id !== undefined) {
+                        if (!lastMessage.swipe_info) {
+                            lastMessage.swipe_info = [];
+                        }
+                        if (!lastMessage.swipe_info[lastMessage.swipe_id]) {
+                            lastMessage.swipe_info[lastMessage.swipe_id] = {};
+                        }
+
+                        // Copy the extra data into the swipe_info to ensure it is saved in the chat history.
+                        lastMessage.swipe_info[lastMessage.swipe_id].extra = structuredClone(lastMessage.extra);
+                    }
+                    context.saveChat();
+
+                    if (DEBUG_MODE) console.log('ESTIM: Saved tool call arguments to last message extra:', lastMessage.extra[MODULE_NAME]);
+                }
 
                 return `Stimulation "${scheduledNextAction.pattern}" inflicted. ` +
                     `Restricted remote control will ` +
@@ -2141,7 +2201,7 @@ async function registerUiMacros() {
         handler: () => {
             // Check if we need to refresh the telemetry string. This is important because
             // the LLM may have already received a telemetry update in the previous turn,
-            //  and we don't want to flood it with redundant information.
+            // and we don't want to flood it with redundant information.
             // The globalTelemetryString will be set to null once the LLM has finished
             // processing the last telemetry update, allowing us to send a new one.
             if (globalTelemetryString == null) {
@@ -2177,7 +2237,17 @@ async function registerUiMacros() {
                     globalTelemetryString += ` | RESTRICTED REMOTE CONTROL EVENTS: ` + restrRemoteState.telemetryQueue.join(' ');
                     restrRemoteState.telemetryQueue = []; // Clear the queue after reading
                 }
+
+                const inflictPhysicalSensationHistoryArray = getInflictPhysicalSensationHistoryArray();
+                if (inflictPhysicalSensationHistoryArray.length > 0) {
+                    globalTelemetryString += ` | PAST TOOL CALLS (JSON array, oldest to newest): ` +
+                        JSON.stringify(inflictPhysicalSensationHistoryArray);
+
+                    if (DEBUG_MODE) console.log('ESTIM: estim_state Past tool calls telemetry:', inflictPhysicalSensationHistoryArray);
+                }
+                if (DEBUG_MODE) console.log('ESTIM: estim_state updated');
             }
+            if (DEBUG_MODE) console.log('ESTIM: estim_state telemetry string:', globalTelemetryString);
 
             // Return the telemetry string to the LLM. It will be cleared after the LLM has processed it.
             return globalTelemetryString;
