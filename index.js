@@ -1226,7 +1226,9 @@ async function registerAiFunctionTools() {
                 target_channel: {
                     type: 'string',
                     enum: ['both', 'ch1', 'ch2'],
-                    description: 'Select \'both\' for general stimulation, \'ch1\' for ${ch1_text} only, \'ch2\' for ${ch2_text} only.'
+                    description: `Select \'ch1\' for ${ch1_text} only, \'ch2\' for ${ch2_text} only.` +
+                        `If the narration explicitly focuses on one body part, select the corresponding channel to increase immersion. ` +
+                        `For more general sensations or when other body parts are involved, select \'both\'. Default is \'both\'.`,
                     //description: `Which body part to stimulate. Select 'both' to stimulate ${ch1_text} and ` +
                     //    `${ch2_text}. Select 'ch1' to strictly isolate the signal to: ${ch1_text}. ` +
                     //    `Select 'ch2' to strictly isolate the signal to: ${ch2_text}. Default is 'both'. ` +
