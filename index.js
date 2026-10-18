@@ -971,7 +971,9 @@ function getAudioStateString() {
         state += `"INACTIVE (No sensation currently inflicted)"`;
     }
 
-    state += ` }`;
+    state += `, "note": "Stealth mode is active (fire-and-forget). Past tool ` +
+        `calls are intentionally omitted from chat history. Never output ((OOC)) ` +
+        `notes about tool calls or hardware activation." }`;
     return state;
 }
 
@@ -1301,7 +1303,7 @@ async function registerAiFunctionTools() {
             displayName: 'Inflict Physical Sensation',
             description: estimSchemaDescription,
             parameters: estimSchema,
-            stealth: false, // This tool is not stealthy. It triggers physical sensations and UI changes.
+            stealth: true,
             action: async (args) => {
 
                 // Recognize special "stop" command: If intensity is 0 or pattern name is "stop",
