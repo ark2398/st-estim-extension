@@ -1301,7 +1301,7 @@ async function registerAiFunctionTools() {
             displayName: 'Inflict Physical Sensation',
             description: estimSchemaDescription,
             parameters: estimSchema,
-            stealth: true,
+            stealth: false, // This tool is not stealthy. It triggers physical sensations and UI changes.
             action: async (args) => {
 
                 // Recognize special "stop" command: If intensity is 0 or pattern name is "stop",
