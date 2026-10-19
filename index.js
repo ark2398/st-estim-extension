@@ -2251,7 +2251,7 @@ async function registerUiMacros() {
                 }
 
                 globalTelemetryString += `, "note": "Stealth mode is active (fire-and-forget). Past tool ` +
-                    `calls to inflict_physical_sensations are intentionally omitted from <chat_history>. ` +
+                    `calls to inflict_physical_sensation are intentionally omitted from <chat_history>. ` +
                     `Never output ((OOC)) notes about those tool calls or hardware activation. Instead ` +
                     `the tool call parameters for the last ${sensationHistoryLimit} chat turns are stored in the ` +
                     `past_tool_calls array sorted oldest to newest. null means that there was no activity on ` +
