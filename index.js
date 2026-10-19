@@ -168,7 +168,8 @@ const defaultSettings = Object.freeze({
     maxPainCalibration: null,          // Maximum calibration value for pain sensations
     blindfoldModes: false,             // Whether to hide the toast notifications when a sensation is played.
     simulationOnly: false,             // Whether to only simulate the sensations without actually outputting them.
-    verboseToolDescriptions: false     // Whether to provide verbose descriptions of the sensations in the AI tools
+    verboseToolDescriptions: false,    // Whether to provide verbose descriptions of the sensations in the AI tools
+    sensationHistoryLimit: 10,         // How many of the last sensations to remember for the AI tools
 });
 
 
@@ -954,7 +955,7 @@ function getAudioStateString() {
     // Current real-time state of the audio (which might differ from the last triggered
     // action if the duration is long or looping)
     //state = state + `, "current_real_time_state": `
-    let state = `{ "current_real_time_state": `
+    let state = `"current_running_real_time_sensation": `
     if (audioState.playing) {
         const elapsedTime = audioState.audioContext.currentTime - audioState.startTime;
         state += `{ "pattern": "${audioState.pattern}", "intensity": ${audioState.intensity}, `;
@@ -972,10 +973,6 @@ function getAudioStateString() {
     else {
         state += `"INACTIVE (No sensation currently inflicted)"`;
     }
-
-    state += `, "note": "Stealth mode is active (fire-and-forget). Past tool ` +
-        `calls are intentionally omitted from chat history. Never output ((OOC)) ` +
-        `notes about tool calls or hardware activation." }`;
     return state;
 }
 
@@ -1147,7 +1144,7 @@ function hideRemoteControlWidget() {
  * Helper function: Scans the last n messages for stored estim triggers and builds a JSON array
  * for the LLM to remember its past exact tool calls.
  */
-function getInflictPhysicalSensationHistoryArray(n = 5) {
+function getInflictPhysicalSensationHistoryArray(n) {
     const context = SillyTavern.getContext();
     const chat = context.chat;
     const startIndex = Math.max(0, chat.length - n);
@@ -1166,6 +1163,9 @@ function getInflictPhysicalSensationHistoryArray(n = 5) {
             // Add timing information as a meta-parameter
             pastCall._turns_ago = turnsAgo;
             historyArray.push(pastCall);
+        }
+        else {
+            historyArray.push(null);
         }
     }
 
@@ -2206,8 +2206,10 @@ async function registerUiMacros() {
             // processing the last telemetry update, allowing us to send a new one.
             if (globalTelemetryString == null) {
 
+                globalTelemetryString = '{';  // Start of the telemetry JSON object
+
                 // Fetch the normal hardware status string
-                globalTelemetryString = getAudioStateString();
+                globalTelemetryString += getAudioStateString();
 
                 // Check if the user ignored a pending trick challenge and add telemetry if so.
                 // This allows the LLM to react to the user's choice of ignoring the challenge,
@@ -2229,22 +2231,32 @@ async function registerUiMacros() {
 
                 // Show current remote control config in the telemetry if it is open.
                 if (restrRemoteState.isOpen && restrRemoteState.remoteControlConfig) {
-                    globalTelemetryString += ` | VISIBLE UI (remoteControlConfig): ` + JSON.stringify(restrRemoteState.remoteControlConfig);
+                    globalTelemetryString += `, "visible_remote_control_config": ` + JSON.stringify(restrRemoteState.remoteControlConfig);
                 }
 
                 // Add remote control events, if any
                 if (restrRemoteState.telemetryQueue.length > 0) {
-                    globalTelemetryString += ` | RESTRICTED REMOTE CONTROL EVENTS: ` + restrRemoteState.telemetryQueue.join(' ');
+                    globalTelemetryString += `, "visible_remote_control_events": "` + restrRemoteState.telemetryQueue.join(' ') + `"`;
                     restrRemoteState.telemetryQueue = []; // Clear the queue after reading
                 }
 
-                const inflictPhysicalSensationHistoryArray = getInflictPhysicalSensationHistoryArray();
+                const sensationHistoryLimit = getSettings().sensationHistoryLimit || 10;
+                const inflictPhysicalSensationHistoryArray = getInflictPhysicalSensationHistoryArray(sensationHistoryLimit);
                 if (inflictPhysicalSensationHistoryArray.length > 0) {
-                    globalTelemetryString += ` | PAST TOOL CALLS (JSON array, oldest to newest): ` +
-                        JSON.stringify(inflictPhysicalSensationHistoryArray);
-
+                    globalTelemetryString += `, "past_tool_calls": ` + JSON.stringify(inflictPhysicalSensationHistoryArray);
                     if (DEBUG_MODE) console.log('ESTIM: estim_state Past tool calls telemetry:', inflictPhysicalSensationHistoryArray);
                 }
+                else {
+                    globalTelemetryString += `, "past_tool_calls": []`;
+                }
+
+                globalTelemetryString += `, "note": "Stealth mode is active (fire-and-forget). Past tool ` +
+                    `calls to inflict_physical_sensations are intentionally omitted from <chat_history>. ` +
+                    `Never output ((OOC)) notes about those tool calls or hardware activation. Instead ` +
+                    `the tool call parameters for the last ${sensationHistoryLimit} chat turns are stored in the ` +
+                    `past_tool_calls array sorted oldest to newest. null means that there was no activity on ` +
+                    `that specific chat turn." }`;
+
                 if (DEBUG_MODE) console.log('ESTIM: estim_state updated');
             }
             if (DEBUG_MODE) console.log('ESTIM: estim_state telemetry string:', globalTelemetryString);
